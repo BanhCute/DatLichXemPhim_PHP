@@ -111,84 +111,92 @@
         </div>
     <?php else: ?>
         <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-            <?php foreach ($movies as $movie): ?>
-                <?php
-                // Debug thông tin từng phim
-                error_log("Processing movie: " . json_encode($movie));
-                ?>
-                <div class="col">
-                    <div class="card h-100 border-0 shadow-sm movie-card">
-                        <div class="position-relative">
-                            <?php if (!empty($movie['imageUrl'])): ?>
-                                <img src="<?php echo BASE_URL . $movie['imageUrl']; ?>"
-                                    class="card-img-top"
-                                    alt="<?php echo htmlspecialchars($movie['title']); ?>"
-                                    style="height: 300px; object-fit: cover; border-top-left-radius: 10px; border-top-right-radius: 10px;">
-                            <?php else: ?>
-                                <div class="bg-light d-flex align-items-center justify-content-center" style="height: 300px; border-top-left-radius: 10px; border-top-right-radius: 10px;">
-                                    <i class="fas fa-film fa-3x text-muted"></i>
-                                </div>
-                            <?php endif; ?>
+            <?php
+            // Tạo mảng lưu trữ phim đã hiển thị
+            $displayedMovies = [];
 
-                            <div class="position-absolute top-0 start-0 m-2">
-                                <span class="badge bg-primary shadow-sm">ID: <?php echo $movie['id']; ?></span>
-                            </div>
-
-                            <div class="position-absolute top-0 end-0 m-2">
-                                <span class="badge bg-info shadow-sm">
-                                    <i class="fas fa-clock"></i> <?php echo $movie['duration']; ?> phút
-                                </span>
-                            </div>
-                        </div>
-
-                        <div class="card-body">
-                            <h5 class="card-title fw-bold text-dark"><?php echo htmlspecialchars($movie['title']); ?></h5>
-                            <div class="category-container mb-2">
-                                <?php if (!empty($movie['categories'])): ?>
-                                    <?php foreach ($movie['categories'] as $category): ?>
-                                        <span class="badge bg-secondary me-1 category-badge">
-                                            <i class="fas fa-tag me-1"></i>
-                                            <?php echo htmlspecialchars($category['name']); ?>
-                                        </span>
-                                    <?php endforeach; ?>
+            foreach ($movies as $movie):
+                // Kiểm tra nếu phim chưa được hiển thị
+                if (!in_array($movie['id'], $displayedMovies)):
+                    // Thêm ID phim vào mảng đã hiển thị
+                    $displayedMovies[] = $movie['id'];
+            ?>
+                    <div class="col">
+                        <div class="card h-100 border-0 shadow-sm movie-card">
+                            <div class="position-relative">
+                                <?php if (!empty($movie['imageUrl'])): ?>
+                                    <img src="<?php echo BASE_URL . $movie['imageUrl']; ?>"
+                                        class="card-img-top"
+                                        alt="<?php echo htmlspecialchars($movie['title']); ?>"
+                                        style="height: 300px; object-fit: cover; border-top-left-radius: 10px; border-top-right-radius: 10px;">
                                 <?php else: ?>
-                                    <span class="badge bg-secondary me-1 category-badge">
-                                        <i class="fas fa-tag me-1"></i>Chưa phân loại
+                                    <div class="bg-light d-flex align-items-center justify-content-center" style="height: 300px; border-top-left-radius: 10px; border-top-right-radius: 10px;">
+                                        <i class="fas fa-film fa-3x text-muted"></i>
+                                    </div>
+                                <?php endif; ?>
+
+                                <div class="position-absolute top-0 start-0 m-2">
+                                    <span class="badge bg-primary shadow-sm">ID: <?php echo $movie['id']; ?></span>
+                                </div>
+
+                                <div class="position-absolute top-0 end-0 m-2">
+                                    <span class="badge bg-info shadow-sm">
+                                        <i class="fas fa-clock"></i> <?php echo $movie['duration']; ?> phút
                                     </span>
+                                </div>
+                            </div>
+
+                            <div class="card-body">
+                                <h5 class="card-title fw-bold text-dark"><?php echo htmlspecialchars($movie['title']); ?></h5>
+                                <div class="category-container mb-2">
+                                    <?php if (!empty($movie['categories'])): ?>
+                                        <?php foreach ($movie['categories'] as $category): ?>
+                                            <span class="badge bg-secondary me-1 category-badge">
+                                                <i class="fas fa-tag me-1"></i>
+                                                <?php echo htmlspecialchars($category['name']); ?>
+                                            </span>
+                                        <?php endforeach; ?>
+                                    <?php else: ?>
+                                        <span class="badge bg-secondary me-1 category-badge">
+                                            <i class="fas fa-tag me-1"></i>Chưa phân loại
+                                        </span>
+                                    <?php endif; ?>
+                                </div>
+                                <p class="card-text text-muted">
+                                    <?php if (!empty($movie['description'])): ?>
+                                        <?php echo htmlspecialchars(substr($movie['description'], 0, 100)) . '...'; ?>
+                                    <?php endif; ?>
+                                </p>
+
+                                <!-- Thêm nút xem trailer -->
+                                <?php if (!empty($movie['trailer'])): ?>
+                                    <a href="<?php echo htmlspecialchars($movie['trailer']); ?>"
+                                        target="_blank"
+                                        class="btn btn-outline-danger btn-sm mb-2 shadow-sm trailer-btn">
+                                        <i class="fab fa-youtube"></i> Xem Trailer
+                                    </a>
                                 <?php endif; ?>
                             </div>
-                            <p class="card-text text-muted">
-                                <?php if (!empty($movie['description'])): ?>
-                                    <?php echo htmlspecialchars(substr($movie['description'], 0, 100)) . '...'; ?>
-                                <?php endif; ?>
-                            </p>
 
-                            <!-- Thêm nút xem trailer -->
-                            <?php if (!empty($movie['trailer'])): ?>
-                                <a href="<?php echo htmlspecialchars($movie['trailer']); ?>"
-                                    target="_blank"
-                                    class="btn btn-outline-danger btn-sm mb-2 shadow-sm trailer-btn">
-                                    <i class="fab fa-youtube"></i> Xem Trailer
-                                </a>
-                            <?php endif; ?>
-                        </div>
-
-                        <div class="card-footer bg-transparent border-0">
-                            <div class="d-flex justify-content-between">
-                                <a href="<?php echo BASE_URL; ?>admin/movies/edit?id=<?php echo $movie['id']; ?>"
-                                    class="btn btn-primary btn-sm shadow-sm">
-                                    <i class="fas fa-edit"></i> Sửa
-                                </a>
-                                <a href="<?php echo BASE_URL; ?>admin/movies/delete?id=<?php echo $movie['id']; ?>"
-                                    class="btn btn-danger btn-sm shadow-sm"
-                                    onclick="return confirm('Bạn có chắc muốn xóa phim này?');">
-                                    <i class="fas fa-trash"></i> Xóa
-                                </a>
+                            <div class="card-footer bg-transparent border-0">
+                                <div class="d-flex justify-content-between">
+                                    <a href="<?php echo BASE_URL; ?>admin/movies/edit?id=<?php echo $movie['id']; ?>"
+                                        class="btn btn-primary btn-sm shadow-sm">
+                                        <i class="fas fa-edit"></i> Sửa
+                                    </a>
+                                    <a href="<?php echo BASE_URL; ?>admin/movies/delete?id=<?php echo $movie['id']; ?>"
+                                        class="btn btn-danger btn-sm shadow-sm"
+                                        onclick="return confirm('Bạn có chắc muốn xóa phim này?');">
+                                        <i class="fas fa-trash"></i> Xóa
+                                    </a>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            <?php endforeach; ?>
+            <?php
+                endif;
+            endforeach;
+            ?>
         </div>
 
         <!-- Phân trang -->

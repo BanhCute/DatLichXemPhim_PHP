@@ -80,55 +80,62 @@
     <?php else: ?>
         <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4">
             <?php
-            // Thêm xử lý loại bỏ phim trùng lặp
-            $uniqueMovieIds = array_unique(array_column($movies, 'id'));
-            foreach ($uniqueMovieIds as $movieId):
-                $movie = $movies[array_search($movieId, array_column($movies, 'id'))];
+            // Tạo mảng lưu trữ phim đã hiển thị
+            $displayedMovies = [];
+
+            foreach ($movies as $movie):
+                // Kiểm tra nếu phim chưa được hiển thị
+                if (!in_array($movie['id'], $displayedMovies)):
+                    // Thêm ID phim vào mảng đã hiển thị
+                    $displayedMovies[] = $movie['id'];
             ?>
-                <div class="col">
-                    <div class="card h-100 border-0 shadow-sm movie-card">
-                        <div class="position-relative overflow-hidden">
-                            <?php if (!empty($movie['imageUrl'])): ?>
-                                <img src="<?php echo BASE_URL . $movie['imageUrl']; ?>"
-                                    class="card-img-top"
-                                    alt="<?php echo htmlspecialchars($movie['title']); ?>"
-                                    style="height: 400px; object-fit: cover;">
-                            <?php endif; ?>
-                            <div class="movie-overlay">
-                                <span class="duration-badge">
-                                    <i class="fas fa-clock me-1"></i><?php echo $movie['duration']; ?> phút
-                                </span>
+                    <div class="col">
+                        <div class="card h-100 border-0 shadow-sm movie-card">
+                            <div class="position-relative overflow-hidden">
+                                <?php if (!empty($movie['imageUrl'])): ?>
+                                    <img src="<?php echo BASE_URL . $movie['imageUrl']; ?>"
+                                        class="card-img-top"
+                                        alt="<?php echo htmlspecialchars($movie['title']); ?>"
+                                        style="height: 400px; object-fit: cover;">
+                                <?php endif; ?>
+                                <div class="movie-overlay">
+                                    <span class="duration-badge">
+                                        <i class="fas fa-clock me-1"></i><?php echo $movie['duration']; ?> phút
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="card-body">
+                                <h5 class="card-title fw-bold mb-3"><?php echo htmlspecialchars($movie['title']); ?></h5>
+                                <?php if (isset($movie['categories']) && !empty($movie['categories'])): ?>
+                                    <div class="categories-wrap mb-3">
+                                        <?php foreach ($movie['categories'] as $category): ?>
+                                            <span class="category-badge">
+                                                <?php echo htmlspecialchars($category['name']); ?>
+                                            </span>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endif; ?>
+
+                                <?php if (!empty($movie['trailer'])): ?>
+                                    <a href="<?php echo htmlspecialchars($movie['trailer']); ?>"
+                                        target="_blank"
+                                        class="btn btn-outline-danger btn-sm w-100 mb-2">
+                                        <i class="fab fa-youtube me-1"></i>Xem Trailer
+                                    </a>
+                                <?php endif; ?>
+
+                                <a href="<?php echo BASE_URL; ?>movies/detail?id=<?php echo $movie['id']; ?>"
+                                    class="btn btn-primary btn-sm w-100">
+                                    <i class="fas fa-info-circle me-1"></i>Chi tiết
+                                </a>
                             </div>
                         </div>
-
-                        <div class="card-body">
-                            <h5 class="card-title fw-bold mb-3"><?php echo htmlspecialchars($movie['title']); ?></h5>
-                            <?php if (isset($movie['categories']) && !empty($movie['categories'])): ?>
-                                <div class="categories-wrap mb-3">
-                                    <?php foreach ($movie['categories'] as $category): ?>
-                                        <span class="category-badge">
-                                            <?php echo htmlspecialchars($category['name']); ?>
-                                        </span>
-                                    <?php endforeach; ?>
-                                </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($movie['trailer'])): ?>
-                                <a href="<?php echo htmlspecialchars($movie['trailer']); ?>"
-                                    target="_blank"
-                                    class="btn btn-outline-danger btn-sm w-100 mb-2">
-                                    <i class="fab fa-youtube me-1"></i>Xem Trailer
-                                </a>
-                            <?php endif; ?>
-
-                            <a href="<?php echo BASE_URL; ?>movies/detail?id=<?php echo $movie['id']; ?>"
-                                class="btn btn-primary btn-sm w-100">
-                                <i class="fas fa-info-circle me-1"></i>Chi tiết
-                            </a>
-                        </div>
                     </div>
-                </div>
-            <?php endforeach; ?>
+            <?php
+                endif;
+            endforeach;
+            ?>
         </div>
 
         <!-- Phân trang -->
