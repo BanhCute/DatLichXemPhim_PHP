@@ -119,4 +119,26 @@ class Category
             return [];
         }
     }
+
+    public function getCategoryStatistics()
+    {
+        try {
+            $sql = "SELECT c.name, COUNT(DISTINCT mc.movie_id) as movie_count 
+                    FROM categories c 
+                    LEFT JOIN movie_categories mc ON c.id = mc.category_id 
+                    GROUP BY c.id, c.name
+                    ORDER BY movie_count DESC";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute();
+            
+            // Debug log
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            error_log("Category statistics: " . json_encode($result));
+            
+            return $result;
+        } catch (PDOException $e) {
+            error_log("Error in getCategoryStatistics: " . $e->getMessage());
+            return [];
+        }
+    }
 }

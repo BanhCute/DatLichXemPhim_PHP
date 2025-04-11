@@ -4,7 +4,7 @@
                 <div class="col-lg-4">
                     <div class="footer-brand mb-4">
                         <h4><i class="fas fa-film me-2"></i>MovieTickets</h4>
-                        <p class="text-muted">Hệ thống đặt vé xem phim trực tuyến hàng đầu Việt Nam</p>
+                        <p>Hệ thống đặt vé xem phim trực tuyến hàng đầu Việt Nam</p>
                     </div>
                     <div class="social-links">
                         <a href="#" class="me-3"><i class="fab fa-facebook fa-lg"></i></a>

@@ -26,6 +26,11 @@
                             <label for="description" class="form-label">Mô tả</label>
                             <textarea class="form-control" id="description" name="description" rows="3" required></textarea>
                         </div>
+                        <div class="form-group">
+                            <label for="trailer">Trailer URL</label>
+                            <input type="text" class="form-control" id="trailer" name="trailer" placeholder="Nhập link trailer Youtube">
+                            <small class="form-text text-muted">Ví dụ: https://www.youtube.com/watch?v=abcd123</small>
+                        </div>
                         <div class="mb-3">
                             <label for="duration" class="form-label">Thời lượng (phút)</label>
                             <input type="number" class="form-control" id="duration" name="duration" required min="1">
@@ -34,6 +39,14 @@
                         <!-- Thêm phần chọn thể loại -->
                         <div class="mb-3">
                             <label class="form-label">Thể loại</label>
+                            <div class="d-flex align-items-center mb-2">
+                                <button type="button" class="btn btn-sm btn-secondary me-2" id="clearCategories">
+                                    <i class="fas fa-times"></i> Bỏ chọn tất cả
+                                </button>
+                                <button type="button" class="btn btn-sm btn-primary" id="selectAllCategories">
+                                    <i class="fas fa-check-square"></i> Chọn tất cả
+                                </button>
+                            </div>
                             <div class="row">
                                 <?php
                                 // Lấy tất cả thể loại
@@ -45,7 +58,7 @@
                                 ?>
                                     <div class="col-md-4 mb-2">
                                         <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" name="categories[]"
+                                            <input class="form-check-input category-checkbox" type="checkbox" name="categories[]"
                                                 value="<?php echo $category['id']; ?>" id="category<?php echo $category['id']; ?>">
                                             <label class="form-check-label" for="category<?php echo $category['id']; ?>">
                                                 <?php echo htmlspecialchars($category['name']); ?>
@@ -74,6 +87,8 @@
                             <input type="file" class="form-control" id="image" name="image" accept="image/jpeg,image/png,image/jpg">
                             <div class="form-text">Chấp nhận file JPG, JPEG & PNG (tối đa 5MB)</div>
                         </div>
+
+
 
                         <div class="d-grid gap-2">
                             <button type="submit" class="btn btn-primary">
@@ -145,6 +160,30 @@
                     <p>Chưa chọn ảnh</p>
                 </div>`;
             }
+        });
+    });
+</script>
+
+<!-- Add this JavaScript before the closing </script> tag -->
+<script>
+    // Existing image preview code...
+
+    // Add category selection functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        const clearBtn = document.getElementById('clearCategories');
+        const selectAllBtn = document.getElementById('selectAllCategories');
+        const categoryCheckboxes = document.querySelectorAll('.category-checkbox');
+
+        clearBtn.addEventListener('click', function() {
+            categoryCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+        });
+
+        selectAllBtn.addEventListener('click', function() {
+            categoryCheckboxes.forEach(checkbox => {
+                checkbox.checked = true;
+            });
         });
     });
 </script>

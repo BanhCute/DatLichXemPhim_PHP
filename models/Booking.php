@@ -1,15 +1,20 @@
 <?php
-require_once "config/database.php";
+require_once 'config/Database.php';
 
 class Booking
 {
-    private $conn;
+    private $db;
     private $table_name = "Booking";
 
     public function __construct()
     {
         $database = new Database();
-        $this->conn = $database->getConnection();
+        $this->db = $database->getConnection();
+
+        // Kiểm tra kết nối
+        if (!$this->db) {
+            throw new Exception("Không thể kết nối database");
+        }
     }
 
     public function getAllBookings()
@@ -25,7 +30,7 @@ class Booking
                  JOIN ShowTime st ON b.showTimeId = st.id
                  JOIN Movie m ON st.movieId = m.id
                  ORDER BY b.bookingDate DESC";
-        $stmt = $this->conn->prepare($query);
+        $stmt = $this->db->prepare($query);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -33,7 +38,6 @@ class Booking
     public function getBookingsByUserId($userId)
     {
         try {
-            // Sửa lại tên bảng và cột cho đúng (chú ý chữ hoa/thường)
             $sql = "SELECT 
                     b.id,
                     b.userId,
@@ -41,39 +45,36 @@ class Booking
                     b.seats,
                     b.totalAmount,
                     b.paymentStatus,
+                    b.bookingDate,
                     b.createdAt,
-                    s.startTime,
-                    s.room,
-                    s.movieId,
-                    m.title as movieTitle
-                    FROM Booking b  -- Chữ B hoa
-                    INNER JOIN ShowTime s ON b.showTimeId = s.id  -- Chữ S và T hoa
-                    INNER JOIN Movie m ON s.movieId = m.id  -- Chữ M hoa
-                    WHERE b.userId = :userId";
+                    st.startTime,
+                    st.room,
+                    m.title as movie_title,
+                    CASE 
+                        WHEN b.paymentStatus = 'completed' THEN 'Đã thanh toán'
+                        WHEN b.paymentStatus = 'pending' THEN 'Chờ thanh toán'
+                        WHEN b.paymentStatus = 'cancelled' THEN 'Đã hủy'
+                        ELSE 'Không xác định'
+                    END as status
+                    FROM booking b
+                    INNER JOIN showtime st ON b.showTimeId = st.id
+                    INNER JOIN movie m ON st.movieId = m.id
+                    WHERE b.userId = ?
+                    ORDER BY b.createdAt DESC";
 
-            $stmt = $this->conn->prepare($sql);
-            $stmt->bindValue(':userId', $userId, PDO::PARAM_INT);
-
-            // Debug trước khi execute
-            error_log("Executing query for user ID: " . $userId);
-
-            $stmt->execute();
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([$userId]);
             $bookings = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Debug kết quả
-            error_log("Found " . count($bookings) . " bookings");
-            foreach ($bookings as $booking) {
-                error_log(json_encode([
-                    'booking_id' => $booking['id'],
-                    'showtime_id' => $booking['showTimeId'],
-                    'movie_title' => $booking['movieTitle'] ?? 'NULL'
-                ]));
+            foreach ($bookings as &$booking) {
+                $booking['startTime'] = date('H:i d/m/Y', strtotime($booking['startTime']));
+                $booking['totalAmount'] = number_format((float)$booking['totalAmount'], 0) . ' VND';
             }
 
             return $bookings;
         } catch (PDOException $e) {
             error_log("Error in getBookingsByUserId: " . $e->getMessage());
-            return [];
+            throw $e;
         }
     }
 
@@ -94,7 +95,7 @@ class Booking
             // Kiểm tra suất chiếu tồn tại và còn hiệu lực
             $checkShowTime = "SELECT id, startTime FROM ShowTime 
                             WHERE id = ? AND startTime > NOW()";
-            $stmt = $this->conn->prepare($checkShowTime);
+            $stmt = $this->db->prepare($checkShowTime);
             $stmt->execute([$showTimeId]);
             $showTime = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -104,7 +105,7 @@ class Booking
             }
             error_log("Found valid showtime: " . json_encode($showTime));
 
-            $this->conn->beginTransaction();
+            $this->db->beginTransaction();
             error_log("Started transaction");
 
             // Tạo booking mới
@@ -112,7 +113,7 @@ class Booking
                      (userId, showTimeId, seats, totalAmount, paymentStatus, bookingDate) 
                      VALUES (?, ?, ?, ?, ?, NOW())";
 
-            $stmt = $this->conn->prepare($query);
+            $stmt = $this->db->prepare($query);
             $result = $stmt->execute([
                 $userId,
                 $showTimeId,
@@ -124,19 +125,19 @@ class Booking
             if (!$result) {
                 $error = $stmt->errorInfo();
                 error_log("Failed to create booking. Error: " . json_encode($error));
-                $this->conn->rollBack();
+                $this->db->rollBack();
                 return false;
             }
 
-            $bookingId = $this->conn->lastInsertId();
-            $this->conn->commit();
+            $bookingId = $this->db->lastInsertId();
+            $this->db->commit();
 
             error_log("Successfully created booking #$bookingId");
             return $bookingId;
         } catch (Exception $e) {
             error_log("Error creating booking: " . $e->getMessage() . "\n" . $e->getTraceAsString());
-            if ($this->conn->inTransaction()) {
-                $this->conn->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
             }
             return false;
         }
@@ -149,7 +150,7 @@ class Booking
             $query = "SELECT id FROM " . $this->table_name . "
                      WHERE paymentStatus = 'pending' 
                      AND bookingDate < DATE_SUB(NOW(), INTERVAL 5 MINUTE)";
-            $stmt = $this->conn->prepare($query);
+            $stmt = $this->db->prepare($query);
             $stmt->execute();
             $expiredBookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
@@ -165,7 +166,7 @@ class Booking
                    SET paymentStatus = 'cancelled' 
                    WHERE id IN (" . implode(',', $expiredBookings) . ")";
 
-            $stmt = $this->conn->prepare($sql);
+            $stmt = $this->db->prepare($sql);
             $result = $stmt->execute();
 
             if ($result) {
@@ -184,7 +185,7 @@ class Booking
     public function cancelBooking($bookingId, $userId = null)
     {
         try {
-            $this->conn->beginTransaction();
+            $this->db->beginTransaction();
 
             // Lấy thông tin booking
             $query = "SELECT b.*, st.startTime 
@@ -198,7 +199,7 @@ class Booking
                 $params[] = $userId;
             }
 
-            $stmt = $this->conn->prepare($query);
+            $stmt = $this->db->prepare($query);
             $stmt->execute($params);
             $booking = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -206,7 +207,7 @@ class Booking
 
             if (!$booking) {
                 error_log("Booking not found or not in pending status");
-                $this->conn->rollBack();
+                $this->db->rollBack();
                 return false;
             }
 
@@ -215,7 +216,7 @@ class Booking
             $now = new DateTime();
             if ($showTime < $now) {
                 error_log("Cannot cancel booking: Show time has passed");
-                $this->conn->rollBack();
+                $this->db->rollBack();
                 return false;
             }
 
@@ -223,22 +224,22 @@ class Booking
             $query = "UPDATE " . $this->table_name . " 
                      SET paymentStatus = 'cancelled' 
                      WHERE id = ?";
-            $stmt = $this->conn->prepare($query);
+            $stmt = $this->db->prepare($query);
             $result = $stmt->execute([$bookingId]);
 
             if (!$result) {
                 error_log("Failed to update booking status");
-                $this->conn->rollBack();
+                $this->db->rollBack();
                 return false;
             }
 
-            $this->conn->commit();
+            $this->db->commit();
             error_log("Successfully cancelled booking #$bookingId");
             return true;
         } catch (Exception $e) {
             error_log("Error canceling booking: " . $e->getMessage());
-            if ($this->conn->inTransaction()) {
-                $this->conn->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
             }
             return false;
         }
@@ -247,7 +248,7 @@ class Booking
     public function confirmBooking($id)
     {
         $query = "UPDATE " . $this->table_name . " SET paymentStatus = 'completed' WHERE id = ?";
-        $stmt = $this->conn->prepare($query);
+        $stmt = $this->db->prepare($query);
         return $stmt->execute([$id]);
     }
 
@@ -260,7 +261,7 @@ class Booking
                  JOIN User u ON b.userId = u.id
                  WHERE b.id = ?";
 
-        $stmt = $this->conn->prepare($query);
+        $stmt = $this->db->prepare($query);
         $stmt->execute([$id]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
@@ -271,7 +272,7 @@ class Booking
                  SET paymentStatus = ? 
                  WHERE id = ?";
 
-        $stmt = $this->conn->prepare($query);
+        $stmt = $this->db->prepare($query);
         return $stmt->execute([$status, $id]);
     }
 
@@ -289,49 +290,42 @@ class Booking
                   WHERE b.userId = ?
                   ORDER BY b.bookingDate DESC";
 
-        $stmt = $this->conn->prepare($query);
+        $stmt = $this->db->prepare($query);
         $stmt->execute([$userId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function getBookedSeats($showTimeId)
     {
+        return $this->getBookedSeatsByShowTime($showTimeId);
+    }
+
+    public function getBookedSeatsByShowTime($showTimeId)
+    {
         try {
-            // Hủy các vé hết hạn trước
-            $this->cancelExpiredBookings();
+            // Lấy tất cả ghế đã đặt cho suất chiếu này
+            $sql = "SELECT seats FROM Booking 
+                    WHERE showTimeId = ? 
+                    AND paymentStatus != 'cancelled'";
 
-            // Lấy danh sách ghế đã đặt (pending hoặc completed)
-            $query = "SELECT b.seats, b.paymentStatus, b.bookingDate 
-                     FROM " . $this->table_name . " b
-                     WHERE b.showTimeId = ? 
-                     AND b.paymentStatus IN ('pending', 'completed')";
-
-            $stmt = $this->conn->prepare($query);
+            $stmt = $this->db->prepare($sql);
             $stmt->execute([$showTimeId]);
-            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $bookings = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Gộp tất cả các ghế đã đặt thành một mảng
+            // Tạo mảng chứa tất cả ghế đã đặt
             $bookedSeats = [];
-            foreach ($results as $booking) {
-                $seatArray = explode(',', $booking['seats']);
-                foreach ($seatArray as $seat) {
-                    $bookedSeats[] = [
-                        'seat' => trim($seat),
-                        'status' => $booking['paymentStatus']
-                    ];
-                }
+            foreach ($bookings as $booking) {
+                // Ghế có thể được lưu dưới dạng chuỗi phân cách bởi dấu phẩy
+                $seats = explode(',', $booking['seats']);
+                $bookedSeats = array_merge($bookedSeats, $seats);
             }
 
-            error_log("Detailed booked seats for showtime $showTimeId: " . print_r($bookedSeats, true));
+            // Debug log
+            error_log("Booked seats for showtime $showTimeId: " . json_encode($bookedSeats));
 
-            // Chuyển đổi sang mảng đơn giản chỉ chứa số ghế
-            $simpleBookedSeats = array_map(function ($item) {
-                return $item['seat'];
-            }, $bookedSeats);
-
-            return array_unique($simpleBookedSeats);
-        } catch (Exception $e) {
-            error_log("Error in getBookedSeats: " . $e->getMessage());
+            return array_unique($bookedSeats); // Loại bỏ các ghế trùng lặp
+        } catch (PDOException $e) {
+            error_log("Error in getBookedSeatsByShowTime: " . $e->getMessage());
             return [];
         }
     }
@@ -348,7 +342,7 @@ class Booking
                      WHERE b.showTimeId = ? 
                      AND b.paymentStatus IN ('pending', 'completed')";
 
-            $stmt = $this->conn->prepare($query);
+            $stmt = $this->db->prepare($query);
             $stmt->execute([$showTimeId]);
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -378,7 +372,7 @@ class Booking
             // Kiểm tra từng bước một
             // 1. Kiểm tra booking
             $sql1 = "SELECT * FROM booking WHERE id = :bookingId";
-            $stmt1 = $this->conn->prepare($sql1);
+            $stmt1 = $this->db->prepare($sql1);
             $stmt1->bindValue(':bookingId', $bookingId);
             $stmt1->execute();
             $booking = $stmt1->fetch(PDO::FETCH_ASSOC);
@@ -387,7 +381,7 @@ class Booking
             if ($booking) {
                 // 2. Kiểm tra showtime
                 $sql2 = "SELECT * FROM showtime WHERE id = :showTimeId";
-                $stmt2 = $this->conn->prepare($sql2);
+                $stmt2 = $this->db->prepare($sql2);
                 $stmt2->bindValue(':showTimeId', $booking['showTimeId']);
                 $stmt2->execute();
                 $showtime = $stmt2->fetch(PDO::FETCH_ASSOC);
@@ -396,7 +390,7 @@ class Booking
                 if ($showtime) {
                     // 3. Kiểm tra movie
                     $sql3 = "SELECT * FROM movie WHERE id = :movieId";
-                    $stmt3 = $this->conn->prepare($sql3);
+                    $stmt3 = $this->db->prepare($sql3);
                     $stmt3->bindValue(':movieId', $showtime['movieId']);
                     $stmt3->execute();
                     $movie = $stmt3->fetch(PDO::FETCH_ASSOC);
@@ -405,6 +399,177 @@ class Booking
             }
         } catch (PDOException $e) {
             error_log("Error in debugBookingInfo: " . $e->getMessage());
+        }
+    }
+
+    public function getBookingStats()
+    {
+        try {
+            // Kiểm tra kết nối trước khi query
+            if (!$this->db) {
+                throw new Exception("Mất kết nối database");
+            }
+
+            // Query đơn giản để test
+            $sql = "SELECT COUNT(*) as total FROM booking";
+            $stmt = $this->db->query($sql);
+
+            if ($stmt === false) {
+                throw new Exception("Lỗi truy vấn: " . print_r($this->db->errorInfo(), true));
+            }
+
+            $total = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+
+            // Query để đếm theo trạng thái
+            $sql = "SELECT 
+                    paymentStatus,
+                    COUNT(*) as count
+                    FROM booking 
+                    GROUP BY paymentStatus";
+
+            $stmt = $this->db->query($sql);
+            $statusCounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Khởi tạo mảng kết quả
+            $stats = [
+                'total' => (int)$total,
+                'confirmed' => 0,
+                'pending' => 0,
+                'cancelled' => 0
+            ];
+
+            // Phân loại theo trạng thái
+            foreach ($statusCounts as $row) {
+                switch ($row['paymentStatus']) {
+                    case 'completed':
+                        $stats['confirmed'] = (int)$row['count'];
+                        break;
+                    case 'pending':
+                        $stats['pending'] = (int)$row['count'];
+                        break;
+                    case 'cancelled':
+                        $stats['cancelled'] = (int)$row['count'];
+                        break;
+                }
+            }
+
+
+            return $stats;
+        } catch (Exception $e) {
+            error_log("Lỗi trong getBookingStats: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    public function getAllBookingsWithDetails()
+    {
+        try {
+            $sql = "SELECT 
+                    b.id,
+                    b.userId,
+                    b.showTimeId,
+                    b.seats,
+                    b.totalAmount,
+                    b.paymentStatus,
+                    b.bookingDate,
+                    b.createdAt,
+                    u.name as userName,
+                    m.title as movieTitle,
+                    s.startTime,
+                    s.room
+                    FROM booking b
+                    LEFT JOIN user u ON b.userId = u.id
+                    LEFT JOIN showtime s ON b.showTimeId = s.id
+                    LEFT JOIN movie m ON s.movieId = m.id
+                    ORDER BY b.createdAt DESC";
+
+            $stmt = $this->db->query($sql);
+            if (!$stmt) {
+                throw new Exception("Query failed: " . print_r($this->db->errorInfo(), true));
+            }
+
+            $bookings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Xử lý dữ liệu trước khi trả về
+            foreach ($bookings as &$booking) {
+                // Format lại các trường dữ liệu
+                $booking['userName'] = $booking['userName'] ?? 'N/A';
+                $booking['movieTitle'] = $booking['movieTitle'] ?? 'N/A';
+                $booking['startTime'] = !empty($booking['startTime']) ?
+                    date('H:i d/m/Y', strtotime($booking['startTime'])) : 'N/A';
+                $booking['room'] = $booking['room'] ? 'Phòng ' . $booking['room'] : 'N/A';
+                $booking['totalAmount'] = number_format($booking['totalAmount'], 0) . ' VND';
+                $booking['bookingDate'] = date('H:i d/m/Y', strtotime($booking['bookingDate']));
+
+                // Chuyển đổi trạng thái sang tiếng Việt
+                $booking['paymentStatus'] = match ($booking['paymentStatus']) {
+                    'completed' => 'Đã xác nhận',
+                    'pending' => 'Chờ xác nhận',
+                    'cancelled' => 'Đã hủy',
+                    default => 'Không xác định'
+                };
+            }
+
+            return $bookings;
+        } catch (Exception $e) {
+            error_log("Lỗi trong getAllBookingsWithDetails: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    public function getTotalBookings()
+    {
+        try {
+            $sql = "SELECT COUNT(*) FROM booking WHERE paymentStatus = 'completed'";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute();
+
+            $result = $stmt->fetchColumn();
+            error_log("Total completed bookings: " . $result); // Debug log
+
+            return (int)$result;
+        } catch (PDOException $e) {
+            error_log("Error in getTotalBookings: " . $e->getMessage());
+            return 0;
+        }
+    }
+
+    public function getBookingStatistics()
+    {
+        try {
+            $sql = "SELECT DATE(bookingDate) as date, COUNT(*) as count 
+                    FROM booking 
+                    WHERE bookingDate >= DATE_SUB(CURRENT_DATE, INTERVAL 7 DAY)
+                    AND paymentStatus = 'completed'
+                    GROUP BY DATE(bookingDate) 
+                    ORDER BY date";
+
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute();
+
+            // Get results
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Debug log
+            error_log("Booking statistics: " . json_encode($results));
+
+            return $results;
+        } catch (PDOException $e) {
+            error_log("Error in getBookingStatistics: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    public function deleteBooking($id)
+    {
+        try {
+            $sql = "DELETE FROM booking WHERE id = :id";
+            $stmt = $this->db->prepare($sql);
+            $stmt->bindParam(':id', $id);
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log("Error deleting booking: " . $e->getMessage());
+            return false;
         }
     }
 }

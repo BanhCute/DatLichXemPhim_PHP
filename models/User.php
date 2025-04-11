@@ -4,7 +4,7 @@ require_once "config/database.php";
 class User
 {
     private $conn;
-    private $table_name = "User";
+    private $table_name = "user"; // Changed to lowercase to match database
 
     public function __construct()
     {
@@ -21,20 +21,14 @@ class User
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    public function createUser($name, $email, $password)
+    public function createUser($name, $email, $hashedPassword, $phone)
     {
         try {
-            $query = "INSERT INTO " . $this->table_name . " (name, email, password) VALUES (?, ?, ?)";
-            $stmt = $this->conn->prepare($query);
-            $result = $stmt->execute([$name, $email, $password]);
-
-            if (!$result) {
-                error_log("Failed to create user. Error info: " . print_r($stmt->errorInfo(), true));
-            }
-
-            return $result;
+            $sql = "INSERT INTO user (name, email, password, phone) VALUES (?, ?, ?, ?)";
+            $stmt = $this->conn->prepare($sql);
+            return $stmt->execute([$name, $email, $hashedPassword, $phone]);
         } catch (PDOException $e) {
-            error_log("Database error when creating user: " . $e->getMessage());
+            error_log("Error creating user: " . $e->getMessage());
             return false;
         }
     }
@@ -81,5 +75,114 @@ class User
         $query = "UPDATE " . $this->table_name . " SET password = ? WHERE id = ?";
         $stmt = $this->conn->prepare($query);
         return $stmt->execute([$password, $id]);
+    }
+
+    public function getUserById($userId)
+    {
+        try {
+            $sql = "SELECT id, name, email, phone, role, createdAt 
+                    FROM " . $this->table_name . " 
+                    WHERE id = ?";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute([$userId]);
+
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($user) {
+                error_log("User found: " . json_encode($user));
+                return $user;
+            } else {
+                error_log("No user found with ID: " . $userId);
+                return null;
+            }
+        } catch (PDOException $e) {
+            error_log("Error in getUserById: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    public function updateUser($userId, $name, $phone)
+    {
+        try {
+            // Check if user exists
+            $user = $this->getUserById($userId);
+            if (!$user) {
+                error_log("User not found for update: " . $userId);
+                return false;
+            }
+
+            $sql = "UPDATE " . $this->table_name . " 
+                    SET name = ?, phone = ? 
+                    WHERE id = ?";
+            $stmt = $this->conn->prepare($sql);
+            $result = $stmt->execute([$name, $phone, $userId]);
+
+            if ($result) {
+                error_log("User updated successfully: " . $userId);
+                return true;
+            } else {
+                error_log("Failed to update user: " . $userId);
+                return false;
+            }
+        } catch (PDOException $e) {
+            error_log("Error in updateUser: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function changePassword($userId, $currentPassword, $newPassword)
+    {
+        try {
+            // Check if user exists and verify current password
+            $sql = "SELECT password FROM " . $this->table_name . " WHERE id = ?";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute([$userId]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$user) {
+                error_log("User not found for password change: " . $userId);
+                return false;
+            }
+
+            // Verify current password
+            if (!password_verify($currentPassword, $user['password'])) {
+                error_log("Current password verification failed for user: " . $userId);
+                return false;
+            }
+
+            // Update with new password
+            $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+            $sql = "UPDATE " . $this->table_name . " SET password = ? WHERE id = ?";
+            $stmt = $this->conn->prepare($sql);
+            $result = $stmt->execute([$hashedPassword, $userId]);
+
+            if ($result) {
+                error_log("Password changed successfully for user: " . $userId);
+                return true;
+            } else {
+                error_log("Failed to change password for user: " . $userId);
+                return false;
+            }
+        } catch (PDOException $e) {
+            error_log("Error in changePassword: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function getTotalUsers()
+    {
+        try {
+            $sql = "SELECT COUNT(*) FROM " . $this->table_name;
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute();
+
+            $result = $stmt->fetchColumn();
+            error_log("Total users count: " . $result);
+
+            return (int)$result;
+        } catch (PDOException $e) {
+            error_log("Error in getTotalUsers: " . $e->getMessage());
+            return 0;
+        }
     }
 }

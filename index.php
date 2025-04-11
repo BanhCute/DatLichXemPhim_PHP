@@ -31,6 +31,7 @@ require_once "controllers/PaymentController.php";
 $url = isset($_GET['url']) ? rtrim($_GET['url'], '/') : '';
 
 // Định nghĩa các route
+// Replace or update these routes
 $routes = [
     // Trang chủ
     '' => ['HomeController', 'index'],
@@ -65,6 +66,7 @@ $routes = [
     'admin/bookings' => ['AdminController', 'bookings'],
     'admin/bookings/confirm' => ['AdminController', 'confirmBooking'],
     'admin/bookings/cancel' => ['AdminController', 'cancelBooking'],
+    'admin/bookings/delete' => ['AdminController', 'deleteBooking'],
 
     // Admin - Quản lý người dùng
     'admin/users' => ['AdminController', 'users'],
@@ -73,13 +75,18 @@ $routes = [
     'admin/users/delete' => ['AdminController', 'deleteUser'],
 
     // User - Đặt vé
-    'booking' => ['BookingController', 'showBookingForm'],
+    'booking/form/([0-9]+)' => ['BookingController', 'form'],
     'booking/create' => ['BookingController', 'create'],
     'booking/confirm' => ['BookingController', 'confirm'],
     'booking/cancel' => ['BookingController', 'cancel'],
     'my-bookings' => ['UserController', 'myBookings'],
     'payment/([0-9]+)' => ['PaymentController', 'showPayment'],
-    'confirm-payment/([0-9]+)' => ['PaymentController', 'confirmPayment']
+    'confirm-payment/([0-9]+)' => ['PaymentController', 'confirmPayment'],
+    'profile' => ['UserController', 'showProfile'],
+    'profile/change-password' => ['UserController', 'showChangePassword'],
+    'profile/update' => ['UserController', 'updateProfile'],
+    'profile/update-password' => ['UserController', 'updatePassword'],
+    'admin/dashboard' => ['AdminController', 'dashboard'], // Add this line
 ];
 
 // Kiểm tra route có tồn tại không

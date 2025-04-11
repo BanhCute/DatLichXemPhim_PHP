@@ -4,6 +4,7 @@ require_once "models/ShowTime.php";
 require_once "models/User.php";
 require_once "models/Booking.php";
 require_once "models/Category.php";
+require_once "config/database.php";
 
 class AdminController
 {
@@ -47,42 +48,22 @@ class AdminController
     // Quản lý phim
     public function movies()
     {
-        // Lấy các tham số tìm kiếm
-        $keyword = isset($_GET['keyword']) ? trim($_GET['keyword']) : '';
-        $categoryId = isset($_GET['category']) ? (int)$_GET['category'] : 0;
-        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-        $perPage = 8;
-
-        // Debug log
-        error_log("Admin Movies - Search Params: keyword=$keyword, categoryId=$categoryId, page=$page");
-
         try {
-            $movies = [];
-            $totalMovies = 0;
+            $keyword = $_GET['keyword'] ?? '';
+            $selectedCategory = $_GET['category'] ?? null;
+            $page = $_GET['page'] ?? 1;
 
-            if ($categoryId > 0) {
-                // Nếu có chọn thể loại
-                if (!empty($keyword)) {
-                    // Có cả keyword và category
-                    $movies = $this->movieModel->getMoviesByCategoryAndKeyword($categoryId, $keyword, $page, $perPage);
-                    $totalMovies = $this->movieModel->countMoviesByCategoryAndKeyword($categoryId, $keyword);
-                } else {
-                    // Chỉ có category
-                    $movies = $this->movieModel->getMoviesByCategory($categoryId, $page, $perPage);
-                    $totalMovies = $this->movieModel->countMoviesByCategory($categoryId);
-                }
-            } else {
-                // Không chọn thể loại
-                if (!empty($keyword)) {
-                    // Chỉ có keyword
-                    $movies = $this->movieModel->searchMovies($keyword, $page, $perPage);
-                    $totalMovies = $this->movieModel->countMoviesByKeyword($keyword);
-                } else {
-                    // Không có điều kiện lọc
-                    $movies = $this->movieModel->getAllMovies($page, $perPage);
-                    $totalMovies = $this->movieModel->countAllMovies();
-                }
-            }
+            // Debug
+            error_log("=== AdminController::movies ===");
+            error_log("Page: $page, Keyword: $keyword, Category: $selectedCategory");
+
+            // Sử dụng cùng một phương thức getMovies như MovieController
+            $movies = $this->movieModel->getMovies($keyword, $selectedCategory, $page);
+
+            // Đếm tổng số phim
+            $totalMovies = $this->movieModel->getTotalMovies($keyword, $selectedCategory);
+            $itemsPerPage = 8;
+            $totalPages = ceil($totalMovies / $itemsPerPage);
 
             // Lấy categories cho mỗi phim
             if ($movies) {
@@ -91,27 +72,14 @@ class AdminController
                 }
             }
 
-            $totalPages = ceil($totalMovies / $perPage);
-            $page = min($page, $totalPages);
-
-            // Lấy danh sách categories cho dropdown
+            // Lấy danh sách categories cho form tìm kiếm
             $categories = $this->categoryModel->getAllCategories();
 
-            error_log("Total movies found: $totalMovies, Total pages: $totalPages, Current page: $page");
-
-            // Sử dụng render thay vì view
-            $this->render('admin/movies/index', [
-                'movies' => $movies,
-                'categories' => $categories,
-                'currentPage' => $page,
-                'totalPages' => $totalPages,
-                'totalMovies' => $totalMovies,
-                'keyword' => $keyword,
-                'selectedCategory' => $categoryId
-            ]);
+            require_once "views/admin/movies/index.php";
         } catch (Exception $e) {
             error_log("Error in AdminController::movies - " . $e->getMessage());
-            // Xử lý lỗi phù hợp
+            $_SESSION['error'] = 'Có lỗi xảy ra khi tải danh sách phim';
+            require_once "views/admin/movies/index.php";
         }
     }
 
@@ -192,6 +160,7 @@ class AdminController
             $title = $_POST['title'] ?? '';
             $description = $_POST['description'] ?? '';
             $duration = $_POST['duration'] ?? 0;
+            $trailer = $_POST['trailer'] ?? '';
 
             // Đảm bảo categories là một mảng
             $categories = isset($_POST['categories']) && is_array($_POST['categories']) ? $_POST['categories'] : [];
@@ -242,7 +211,7 @@ class AdminController
             }
 
             // Cập nhật thông tin phim
-            if ($this->movieModel->updateMovie($id, $title, $description, $duration, $imageUrl)) {
+            if ($this->movieModel->updateMovie($id, $title, $description, $duration, $imageUrl, $trailer)) {
                 // Cập nhật thể loại
                 try {
                     // Xóa các thể loại cũ
@@ -350,25 +319,48 @@ class AdminController
     public function addShowTime()
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $movieId = $_POST['movieId'] ?? 0;
+            $movieId = $_POST['movieId'] ?? '';
             $startTime = $_POST['startTime'] ?? '';
             $room = $_POST['room'] ?? '';
-            $price = $_POST['price'] ?? 0;
+            $price = $_POST['price'] ?? '';
 
+            // Debug log
+            error_log("=== Dữ liệu nhận được từ form ===");
+            error_log("Movie ID: $movieId");
+            error_log("Start Time: $startTime");
+            error_log("Room: $room");
+            error_log("Price: $price");
+
+            // Validate input
             if (empty($movieId) || empty($startTime) || empty($room) || empty($price)) {
                 $_SESSION['error'] = 'Vui lòng điền đầy đủ thông tin';
                 header('Location: ' . BASE_URL . 'admin/showtimes/add');
                 exit;
             }
 
-            // Tính endTime dựa trên thời lượng phim
+            // Lấy thông tin phim để tính thời gian kết thúc
             $movie = $this->movieModel->getMovieById($movieId);
+            if (!$movie) {
+                $_SESSION['error'] = 'Không tìm thấy phim';
+                header('Location: ' . BASE_URL . 'admin/showtimes/add');
+                exit;
+            }
+
+            // Format lại thời gian bắt đầu để phù hợp với MySQL
             $startDateTime = new DateTime($startTime);
+            $startTime = $startDateTime->format('Y-m-d H:i:s');
+
+            // Tính thời gian kết thúc
             $endDateTime = clone $startDateTime;
             $endDateTime->add(new DateInterval('PT' . $movie['duration'] . 'M'));
             $endTime = $endDateTime->format('Y-m-d H:i:s');
 
-            if ($this->showTimeModel->createShowTime($movieId, $startTime, $endTime, $room, $price)) {
+            error_log("Thời gian sau khi format:");
+            error_log("Start time formatted: $startTime");
+            error_log("End time calculated: $endTime");
+
+            // Thêm suất chiếu mới
+            if ($this->showTimeModel->addShowTime($movieId, $startTime, $endTime, $room, $price)) {
                 $_SESSION['success'] = 'Thêm suất chiếu thành công';
                 header('Location: ' . BASE_URL . 'admin/showtimes');
             } else {
@@ -378,6 +370,7 @@ class AdminController
             exit;
         }
 
+        // Lấy danh sách phim để hiển thị trong form
         $movies = $this->movieModel->getAllMovies();
         require_once "views/admin/showtimes/add.php";
     }
@@ -456,8 +449,26 @@ class AdminController
     // Thống kê đặt vé
     public function bookings()
     {
-        $bookings = $this->bookingModel->getAllBookings();
-        require_once "views/admin/bookings/index.php";
+        try {
+            // Khởi tạo biến mặc định
+            $totalBookings = $confirmedBookings = $pendingBookings = $cancelledBookings = 0;
+            $bookings = [];
+
+            // Lấy dữ liệu
+            $stats = $this->bookingModel->getBookingStats();
+            $bookings = $this->bookingModel->getAllBookingsWithDetails();
+
+            // Gán giá trị cho view
+            $totalBookings = $stats['total'];
+            $confirmedBookings = $stats['confirmed'];
+            $pendingBookings = $stats['pending'];
+            $cancelledBookings = $stats['cancelled'];
+
+            require_once 'views/admin/bookings/index.php';
+        } catch (Exception $e) {
+            $_SESSION['error'] = 'Lỗi: ' . $e->getMessage();
+            require_once 'views/admin/bookings/index.php';
+        }
     }
 
     public function confirmBooking($id)
@@ -478,6 +489,27 @@ class AdminController
         } else {
             $_SESSION['error'] = 'Không thể hủy vé này';
         }
+        header('Location: ' . BASE_URL . 'admin/bookings');
+        exit;
+    }
+
+    public function deleteBooking()
+    {
+        try {
+            $id = $_GET['id'] ?? 0;
+            if (!$id) {
+                throw new Exception("ID không hợp lệ");
+            }
+
+            if ($this->bookingModel->deleteBooking($id)) {
+                $_SESSION['success'] = 'Xóa vé thành công';
+            } else {
+                $_SESSION['error'] = 'Không thể xóa vé này';
+            }
+        } catch (Exception $e) {
+            $_SESSION['error'] = 'Có lỗi xảy ra: ' . $e->getMessage();
+        }
+
         header('Location: ' . BASE_URL . 'admin/bookings');
         exit;
     }
@@ -633,4 +665,69 @@ class AdminController
         header('Location: ' . BASE_URL . 'admin/categories');
         exit;
     }
-}
+
+    public function dashboard()
+    {
+        try {
+            // Initialize default values
+            $totalMovies = 0;
+            $totalBookings = 0;
+            $totalUsers = 0;
+            $totalShowtimes = 0;
+            $categoryStats = [];
+            $bookingStats = [];
+            $popularMovies = [];
+
+            // Get total counts with individual error handling
+            try {
+                $totalMovies = $this->movieModel->getTotalMovies();
+            } catch (Exception $e) {
+                error_log("Error getting total movies: " . $e->getMessage());
+            }
+
+            try {
+                $totalBookings = $this->bookingModel->getTotalBookings();
+            } catch (Exception $e) {
+                error_log("Error getting total bookings: " . $e->getMessage());
+            }
+
+            try {
+                $totalUsers = $this->userModel->getTotalUsers();
+            } catch (Exception $e) {
+                error_log("Error getting total users: " . $e->getMessage());
+            }
+
+            try {
+                $totalShowtimes = $this->showTimeModel->getTotalShowtimes();
+            } catch (Exception $e) {
+                error_log("Error getting total showtimes: " . $e->getMessage());
+            }
+
+            // Get additional statistics
+            try {
+                $categoryStats = $this->categoryModel->getCategoryStatistics();
+            } catch (Exception $e) {
+                error_log("Error getting category statistics: " . $e->getMessage());
+            }
+
+            try {
+                $bookingStats = $this->bookingModel->getBookingStatistics();
+            } catch (Exception $e) {
+                error_log("Error getting booking statistics: " . $e->getMessage());
+            }
+
+            try {
+                $popularMovies = $this->movieModel->getPopularMovies();
+            } catch (Exception $e) {
+                error_log("Error getting popular movies: " . $e->getMessage());
+            }
+
+            require_once "views/admin/dashboard.php";
+        } catch (Exception $e) {
+            error_log("Error in dashboard: " . $e->getMessage());
+            $_SESSION['error'] = 'Có lỗi xảy ra khi tải thống kê';
+            header('Location: ' . BASE_URL . 'admin/movies');
+            exit;
+        }
+    }
+} // Add closing brace for the AdminController class

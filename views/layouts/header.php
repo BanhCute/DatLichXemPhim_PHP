@@ -176,6 +176,8 @@
                                 <i class="fas fa-user-shield me-2"></i>Quản lý
                             </a>
                             <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>admin/dashboard">
+                                        <i class="fas fa-chart-line"></i>Thống kê tổng quan</a></li>
                                 <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>admin/movies">
                                         <i class="fas fa-film"></i>Quản lý phim</a></li>
                                 <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>admin/categories">
@@ -199,16 +201,31 @@
                 </ul>
                 <ul class="navbar-nav auth-buttons">
                     <?php if (isset($_SESSION['user_id'])): ?>
-                        <li class="nav-item">
-                            <span class="nav-link user-welcome">
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle user-welcome" href="#" id="userDropdown" data-bs-toggle="dropdown">
                                 <i class="fas fa-user-circle"></i>
                                 <?php echo $_SESSION['user_name']; ?>
-                            </span>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="<?php echo BASE_URL; ?>logout">
-                                <i class="fas fa-sign-out-alt me-2"></i>Đăng xuất
                             </a>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li>
+                                    <a class="dropdown-item" href="<?php echo BASE_URL; ?>profile">
+                                        <i class="fas fa-user me-2"></i>Hồ sơ của tôi
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="<?php echo BASE_URL; ?>profile/change-password">
+                                        <i class="fas fa-key me-2"></i>Đổi mật khẩu
+                                    </a>
+                                </li>
+                                <li>
+                                    <hr class="dropdown-divider">
+                                </li>
+                                <li>
+                                    <a class="dropdown-item text-danger" href="<?php echo BASE_URL; ?>logout">
+                                        <i class="fas fa-sign-out-alt me-2"></i>Đăng xuất
+                                    </a>
+                                </li>
+                            </ul>
                         </li>
                     <?php else: ?>
                         <li class="nav-item">

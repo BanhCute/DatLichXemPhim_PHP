@@ -23,6 +23,17 @@
                             <input type="text" class="form-control" id="name" name="name" required>
                         </div>
                         <div class="mb-3">
+                            <label for="phone" class="form-label">Số điện thoại</label>
+                            <input type="tel"
+                                class="form-control"
+                                id="phone"
+                                name="phone"
+                                pattern="[0-9]{10}"
+                                title="Vui lòng nhập 10 số điện thoại"
+                                required>
+                            <div class="form-text">Chỉ nhập số, ví dụ: 0912345678</div>
+                        </div>
+                        <div class="mb-3">
                             <label for="email" class="form-label">Email</label>
                             <input type="email" class="form-control" id="email" name="email" required>
                         </div>

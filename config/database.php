@@ -13,16 +13,18 @@ class Database
 
         try {
             $this->conn = new PDO(
-                "mysql:host=" . $this->host . ";dbname=" . $this->db_name,
+                "mysql:host=" . $this->host . ";port=3306;dbname=" . $this->db_name . ";charset=utf8mb4",
                 $this->username,
-                $this->password
+                $this->password,
+                array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION)
             );
-            $this->conn->exec("set names utf8");
-            $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        } catch (PDOException $e) {
-            echo "Lỗi kết nối: " . $e->getMessage();
-        }
 
-        return $this->conn;
+            error_log("Database connection successful");
+
+            return $this->conn;
+        } catch (PDOException $e) {
+            error_log("Database Connection Error: " . $e->getMessage());
+            throw new Exception("Không thể kết nối đến cơ sở dữ liệu: " . $e->getMessage());
+        }
     }
 }

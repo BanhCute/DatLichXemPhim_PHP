@@ -28,71 +28,46 @@ class BookingController
         $this->bookingModel->cancelExpiredBookings();
     }
 
-    public function showBookingForm()
+    public function index()
     {
-        // Đặt múi giờ cho Việt Nam
-        date_default_timezone_set('Asia/Ho_Chi_Minh');
-
-        if (!isset($_SESSION['user_id'])) {
-            $_SESSION['error'] = 'Vui lòng đăng nhập để đặt vé';
-            header('Location: ' . BASE_URL . 'login');
-            exit;
-        }
-
-        $showTimeId = isset($_GET['showtime']) ? $_GET['showtime'] : null;
-        if (!$showTimeId) {
-            $_SESSION['error'] = 'Không tìm thấy suất chiếu';
-            header('Location: ' . BASE_URL . 'movies');
-            exit;
-        }
-
-        // Lấy thông tin suất chiếu
-        $showTime = $this->showTimeModel->getShowTimeById($showTimeId);
-        if (!$showTime) {
-            $_SESSION['error'] = 'Không tìm thấy suất chiếu';
-            header('Location: ' . BASE_URL . 'movies');
-            exit;
-        }
-
-        error_log("Raw showtime data: " . print_r($showTime, true));
-
-        // Kiểm tra thời gian chiếu
         try {
-            $startTimeStr = $showTime['startTime'];
-            error_log("Start time string from DB: " . $startTimeStr);
+            if (!isset($_SESSION['user_id'])) {
+                $_SESSION['error'] = 'Vui lòng đăng nhập để đặt vé';
+                header('Location: ' . BASE_URL . 'login');
+                exit;
+            }
 
-            $startTime = new DateTime($startTimeStr);
-            $now = new DateTime();
-
-            error_log("Debug time info:");
-            error_log("- Current timezone: " . date_default_timezone_get());
-            error_log("- Server time: " . date('Y-m-d H:i:s'));
-            error_log("- Start time: " . $startTime->format('Y-m-d H:i:s'));
-            error_log("- Now: " . $now->format('Y-m-d H:i:s'));
-
-            // Tính khoảng cách thời gian theo phút
-            $diffInMinutes = ($startTime->getTimestamp() - $now->getTimestamp()) / 60;
-            error_log("Difference in minutes: " . $diffInMinutes);
-
-            // Kiểm tra nếu suất chiếu đã qua
-            if ($startTime < $now) {
-                error_log("Booking rejected: Show time has passed");
-                $_SESSION['error'] = 'Suất chiếu này đã diễn ra vui lòng chọn suất chiếu khác';
+            $showTimeId = isset($_GET['showtime']) ? (int)$_GET['showtime'] : 0;
+            if (!$showTimeId) {
+                $_SESSION['error'] = 'Không tìm thấy suất chiếu';
                 header('Location: ' . BASE_URL . 'movies');
                 exit;
             }
 
+            // Lấy thông tin suất chiếu
+            $showTime = $this->showTimeModel->getShowTimeById($showTimeId);
+            if (!$showTime) {
+                $_SESSION['error'] = 'Không tìm thấy suất chiếu';
+                header('Location: ' . BASE_URL . 'movies');
+                exit;
+            }
+
+            // Kiểm tra có thể đặt vé không
+            $bookingStatus = $this->showTimeModel->canBookShowTime($showTimeId);
+            if (!$bookingStatus['can_book']) {
+                $_SESSION['error'] = $bookingStatus['message'];
+                header('Location: ' . BASE_URL . 'movies/detail?id=' . $showTime['movieId']);
+                exit;
+            }
+
             // Lấy danh sách ghế đã đặt
-            $bookedSeats = $this->bookingModel->getBookedSeats($showTimeId);
+            $bookedSeats = $this->bookingModel->getBookedSeatsByShowTime($showTimeId);
             $showTime['booked_seats'] = $bookedSeats;
 
-            error_log("Show time data: " . print_r($showTime, true));
-            error_log("Booked seats: " . print_r($bookedSeats, true));
-
-            require_once "views/booking/form.php";
+            require 'views/booking/form.php';
         } catch (Exception $e) {
-            error_log("Error processing show time: " . $e->getMessage() . "\n" . $e->getTraceAsString());
-            $_SESSION['error'] = 'Có lỗi xảy ra khi xử lý thông tin suất chiếu';
+            error_log("Error in BookingController::index - " . $e->getMessage());
+            $_SESSION['error'] = 'Có lỗi xảy ra khi tải form đặt vé';
             header('Location: ' . BASE_URL . 'movies');
             exit;
         }
@@ -100,80 +75,54 @@ class BookingController
 
     public function create()
     {
-        // Đặt múi giờ cho Việt Nam
-        date_default_timezone_set('Asia/Ho_Chi_Minh');
+        try {
+            if (!isset($_SESSION['user_id'])) {
+                $_SESSION['error'] = 'Vui lòng đăng nhập để đặt vé';
+                header('Location: ' . BASE_URL . 'login');
+                exit;
+            }
 
-        if (!isset($_SESSION['user_id'])) {
-            $_SESSION['error'] = 'Vui lòng đăng nhập để đặt vé';
-            header('Location: ' . BASE_URL . 'login');
+            // Lấy dữ liệu từ form
+            $showTimeId = $_POST['showtime_id'] ?? 0;
+            $seats = $_POST['seats'] ?? [];
+            $totalAmount = $_POST['total_amount'] ?? 0;
+
+            // Kiểm tra dữ liệu
+            if (empty($showTimeId) || empty($seats)) {
+                $_SESSION['error'] = 'Vui lòng chọn ghế ngồi';
+                header('Location: ' . BASE_URL . 'booking/form/' . $showTimeId);
+                exit;
+            }
+
+            // Chuyển mảng ghế thành chuỗi
+            $seatsString = is_array($seats) ? implode(',', $seats) : $seats;
+
+            // Tạo booking với trạng thái pending
+            $bookingId = $this->bookingModel->createBooking(
+                $_SESSION['user_id'],
+                $showTimeId,
+                $seatsString,
+                $totalAmount
+            );
+
+            if (!$bookingId) {
+                $_SESSION['error'] = 'Có lỗi xảy ra khi đặt vé';
+                header('Location: ' . BASE_URL . 'booking/form/' . $showTimeId);
+                exit;
+            }
+
+            // Debug log
+            error_log("Created booking ID: " . $bookingId);
+
+            // Chuyển hướng đến trang thanh toán
+            header('Location: ' . BASE_URL . 'payment/' . $bookingId);
             exit;
-        }
-
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        } catch (Exception $e) {
+            error_log("Error in BookingController::create - " . $e->getMessage());
+            $_SESSION['error'] = 'Có lỗi xảy ra khi đặt vé';
             header('Location: ' . BASE_URL . 'movies');
             exit;
         }
-
-        $showTimeId = $_POST['showtime_id'];
-        $seats = $_POST['seats'];
-        $totalAmount = $_POST['total_amount'];
-
-        // Kiểm tra suất chiếu
-        $showTime = $this->showTimeModel->getShowTimeById($showTimeId);
-        if (!$showTime) {
-            $_SESSION['error'] = 'Không tìm thấy suất chiếu';
-            header('Location: ' . BASE_URL . 'movies');
-            exit;
-        }
-
-        // Kiểm tra thời gian chiếu
-        $startTime = new DateTime($showTime['startTime']);
-        $now = new DateTime();
-
-        // Kiểm tra nếu suất chiếu đã qua
-        if ($startTime < $now) {
-            $_SESSION['error'] = 'Suất chiếu này đã diễn ra vui lòng chọn suất chiếu khác';
-            header('Location: ' . BASE_URL . 'movies');
-            exit;
-        }
-
-        // Kiểm tra ghế đã đặt
-        $bookedSeats = $this->bookingModel->getBookedSeats($showTimeId);
-        $selectedSeats = is_array($seats) ? $seats : explode(',', $seats);
-        $conflictSeats = array_intersect($selectedSeats, $bookedSeats);
-
-        if (!empty($conflictSeats)) {
-            $_SESSION['error'] = 'Ghế ' . implode(', ', $conflictSeats) . ' đã được đặt. Vui lòng chọn ghế khác.';
-            header('Location: ' . BASE_URL . 'booking?showtime=' . $showTimeId);
-            exit;
-        }
-
-        // Debug: Kiểm tra dữ liệu trước khi tạo booking
-        error_log("Creating booking with data: " . json_encode([
-            'userId' => $_SESSION['user_id'],
-            'showTimeId' => $showTimeId,
-            'seats' => $seats,
-            'totalAmount' => $totalAmount,
-            'showTime' => $showTime
-        ]));
-
-        // Tạo booking với trạng thái pending
-        $bookingId = $this->bookingModel->createBooking(
-            $_SESSION['user_id'],
-            $showTimeId,
-            $seats,
-            $totalAmount
-        );
-
-        if (!$bookingId) {
-            $_SESSION['error'] = 'Có lỗi xảy ra khi đặt vé. Vui lòng thử lại sau.';
-            header('Location: ' . BASE_URL . 'booking?showtime=' . $showTimeId);
-            exit;
-        }
-
-        $_SESSION['success'] = 'Đặt vé thành công! Vui lòng thanh toán để hoàn tất đặt vé.';
-        header('Location: ' . BASE_URL . 'my-bookings');
-        exit;
     }
 
     public function showPayment()
@@ -265,55 +214,123 @@ class BookingController
 
     public function myBookings()
     {
-        if (!isset($_SESSION['user_id'])) {
-            header('Location: ' . BASE_URL . 'login');
-            exit;
-        }
-
         try {
+            // Kiểm tra đăng nhập
+            if (!isset($_SESSION['user_id'])) {
+                $_SESSION['error'] = 'Vui lòng đăng nhập để xem vé của bạn';
+                header('Location: ' . BASE_URL . 'login');
+                exit;
+            }
+
             $userId = $_SESSION['user_id'];
+
+            // Debug
+            error_log("Getting bookings for user ID: " . $userId);
+
+            // Lấy danh sách vé
             $bookings = $this->bookingModel->getBookingsByUserId($userId);
 
-            // Debug để xem dữ liệu
-            error_log("Bookings data from controller: " . json_encode($bookings));
+            // Debug
+            error_log("Found " . count($bookings) . " bookings");
+            if (count($bookings) > 0) {
+                error_log("First booking: " . json_encode($bookings[0]));
+            }
 
-            require 'views/booking/my-bookings.php';
+            // Load view
+            require_once 'views/booking/my-bookings.php';
         } catch (Exception $e) {
             error_log("Error in myBookings: " . $e->getMessage());
-            $_SESSION['error'] = 'Có lỗi xảy ra khi lấy thông tin vé';
-            header('Location: ' . BASE_URL);
-            exit;
+            $_SESSION['error'] = 'Có lỗi xảy ra khi tải danh sách vé';
+            require_once 'views/booking/my-bookings.php';
         }
     }
 
     public function cancel()
     {
-        if (!isset($_SESSION['user_id']) || !isset($_GET['id'])) {
+        try {
+            if (!isset($_SESSION['user_id']) || !isset($_GET['id'])) {
+                header('Location: ' . BASE_URL . 'movies');
+                exit;
+            }
+
+            $bookingId = $_GET['id'];
+            $booking = $this->bookingModel->getBookingById($bookingId);
+
+            // Debug log
+            error_log("Cancelling booking: " . json_encode($booking));
+
+            // Kiểm tra quyền hủy vé
+            if (!$booking || $booking['userId'] != $_SESSION['user_id']) {
+                $_SESSION['error'] = 'Không thể hủy vé này';
+                header('Location: ' . BASE_URL . 'my-bookings');
+                exit;
+            }
+
+            // Chỉ cho phép hủy vé chưa thanh toán
+            if ($booking['paymentStatus'] != 'pending') {
+                $_SESSION['error'] = 'Chỉ có thể hủy vé chưa thanh toán';
+                header('Location: ' . BASE_URL . 'my-bookings');
+                exit;
+            }
+
+            // Thực hiện hủy vé
+            if ($this->bookingModel->cancelBooking($bookingId)) {
+                $_SESSION['success'] = 'Hủy vé thành công';
+            } else {
+                $_SESSION['error'] = 'Không thể hủy vé này';
+            }
+
+            header('Location: ' . BASE_URL . 'my-bookings');
+            exit;
+        } catch (Exception $e) {
+            error_log("Error in cancel booking: " . $e->getMessage());
+            $_SESSION['error'] = 'Có lỗi xảy ra khi hủy vé';
+            header('Location: ' . BASE_URL . 'my-bookings');
+            exit;
+        }
+    }
+
+    public function form($showTimeId)
+    {
+        try {
+            if (!isset($_SESSION['user_id'])) {
+                $_SESSION['error'] = 'Vui lòng đăng nhập để đặt vé';
+                header('Location: ' . BASE_URL . 'login');
+                exit;
+            }
+
+            // Lấy thông tin suất chiếu
+            $showTime = $this->showTimeModel->getShowTimeById($showTimeId);
+            if (!$showTime) {
+                $_SESSION['error'] = 'Không tìm thấy suất chiếu';
+                header('Location: ' . BASE_URL . 'movies');
+                exit;
+            }
+
+            // Debug log
+            error_log("Show time data: " . json_encode($showTime));
+
+            // Kiểm tra có thể đặt vé không
+            $bookingStatus = $this->showTimeModel->canBookShowTime($showTimeId);
+            if (!$bookingStatus['can_book']) {
+                $_SESSION['error'] = $bookingStatus['message'];
+                header('Location: ' . BASE_URL . 'movies/detail?id=' . $showTime['movieId']);
+                exit;
+            }
+
+            // Lấy danh sách ghế đã đặt
+            $bookedSeats = $this->bookingModel->getBookedSeats($showTimeId);
+            $showTime['booked_seats'] = $bookedSeats;
+
+            // Debug log
+            error_log("Booked seats: " . json_encode($bookedSeats));
+
+            require 'views/booking/form.php';
+        } catch (Exception $e) {
+            error_log("Error in BookingController::form - " . $e->getMessage());
+            $_SESSION['error'] = 'Có lỗi xảy ra khi tải form đặt vé';
             header('Location: ' . BASE_URL . 'movies');
             exit;
         }
-
-        $bookingId = $_GET['id'];
-        $booking = $this->bookingModel->getBookingById($bookingId);
-
-        if (!$booking || $booking['userId'] != $_SESSION['user_id']) {
-            $_SESSION['error'] = 'Không thể hủy vé này';
-            header('Location: ' . BASE_URL . 'my-bookings');
-            exit;
-        }
-
-        if ($booking['paymentStatus'] === 'completed') {
-            $_SESSION['error'] = 'Không thể hủy vé đã thanh toán';
-            header('Location: ' . BASE_URL . 'my-bookings');
-            exit;
-        }
-
-        if ($this->bookingModel->cancelBooking($bookingId)) {
-            $_SESSION['success'] = 'Hủy vé thành công';
-        } else {
-            $_SESSION['error'] = 'Không thể hủy vé này';
-        }
-        header('Location: ' . BASE_URL . 'my-bookings');
-        exit;
     }
 }

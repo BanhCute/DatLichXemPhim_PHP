@@ -1,4 +1,5 @@
 <?php
+require_once 'config/database.php';
 require_once "models/Movie.php";
 require_once "models/ShowTime.php";
 require_once "models/Category.php";
@@ -10,9 +11,12 @@ class MovieController
     private $categoryModel;
     private $uploadDir;
     private $uploadPath = 'public/uploads/movies/'; // Đường dẫn tương đối cho web
+    private $db;
 
     public function __construct()
     {
+        $database = new Database();
+        $this->db = $database->getConnection();
         $this->movieModel = new Movie();
         $this->showTimeModel = new ShowTime();
         $this->categoryModel = new Category();
@@ -29,83 +33,79 @@ class MovieController
     public function index()
     {
         try {
-            $keyword = isset($_GET['search']) ? trim($_GET['search']) : '';
             $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
-            $categoryId = isset($_GET['category']) ? (int)$_GET['category'] : 0;
-            $perPage = 2;
+            $keyword = isset($_GET['search']) ? trim($_GET['search']) : '';
+            $categoryId = isset($_GET['category']) ? (int)$_GET['category'] : null;
 
             // Debug
-            error_log("Search params - Keyword: $keyword, Category: $categoryId, Page: $page");
+            error_log("=== MovieController::index ===");
+            error_log("Page: $page, Keyword: $keyword, CategoryId: $categoryId");
 
-            // Lấy danh sách phim theo điều kiện
-            if (!empty($keyword) && $categoryId > 0) {
-                $totalMovies = $this->movieModel->countMoviesByCategoryAndKeyword($categoryId, $keyword);
-                $movies = $this->movieModel->getMoviesByCategoryAndKeyword($categoryId, $keyword, $page, $perPage);
-            } elseif (!empty($keyword)) {
-                $totalMovies = $this->movieModel->countMoviesByKeyword($keyword);
-                $movies = $this->movieModel->searchMovies($keyword, $page, $perPage);
-            } elseif ($categoryId > 0) {
-                $totalMovies = $this->movieModel->countMoviesByCategory($categoryId);
-                $movies = $this->movieModel->getMoviesByCategory($categoryId, $page, $perPage);
-            } else {
-                $totalMovies = $this->movieModel->countAllMovies();
-                $movies = $this->movieModel->getAllMovies($page, $perPage);
-            }
+            // Sử dụng phương thức getMovies duy nhất
+            $movies = $this->movieModel->getMovies($keyword, $categoryId, $page);
 
-            // Debug số lượng phim trước khi xử lý categories
-            error_log("Số phim trước khi xử lý categories: " . count($movies));
+            // Đếm tổng số phim để phân trang đúng
+            $totalMovies = $this->movieModel->getTotalMovies($keyword, $categoryId);
+            $itemsPerPage = 8;
+            $totalPages = ceil($totalMovies / $itemsPerPage);
 
-            // Lấy categories cho mỗi phim - Sửa lại phần này
-            if (!empty($movies)) {
-                $uniqueMovies = [];
-                foreach ($movies as $movie) {
-                    if (!isset($uniqueMovies[$movie['id']])) {
-                        $movie['categories'] = $this->movieModel->getCategoriesByMovieId($movie['id']);
-                        $uniqueMovies[$movie['id']] = $movie;
-                    }
+            // Lấy categories cho mỗi phim
+            if ($movies) {
+                foreach ($movies as &$movie) {
+                    $movie['categories'] = $this->movieModel->getCategoriesByMovieId($movie['id']);
                 }
-                $movies = array_values($uniqueMovies);
             }
 
-            // Debug số lượng phim sau khi xử lý categories
-            error_log("Số phim sau khi xử lý categories: " . count($movies));
-
-            // Tính số trang
-            $totalPages = ceil($totalMovies / $perPage);
-            if ($page > $totalPages) $page = $totalPages;
-
-            // Debug phân trang
-            error_log("Tổng số trang: $totalPages, Trang hiện tại: $page");
-
-            // Lấy danh sách categories
+            // Lấy danh sách categories cho form tìm kiếm
             $categories = $this->categoryModel->getAllCategories();
 
-            require_once 'views/movies/index.php';
+            require 'views/movies/index.php';
         } catch (Exception $e) {
-            error_log("Lỗi controller: " . $e->getMessage());
-            // Xử lý lỗi
+            error_log("Error in MovieController::index - " . $e->getMessage());
+            $_SESSION['error'] = 'Có lỗi xảy ra khi tải danh sách phim';
+            require 'views/movies/index.php';
         }
     }
 
-    public function detail($id)
+    public function detail()
     {
-        // Debug
-        error_log("Loading movie detail for ID: " . $id);
+        try {
+            $movieId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
-        $movie = $this->movieModel->getMovieById($id);
-        if (!$movie) {
-            $_SESSION['error'] = 'Không tìm thấy phim này';
+            // Debug
+            error_log("=== Movie Detail ===");
+            error_log("Movie ID: " . $movieId);
+
+            $movie = $this->movieModel->getMovieById($movieId);
+            if (!$movie) {
+                $_SESSION['error'] = 'Không tìm thấy phim';
+                header('Location: ' . BASE_URL . 'movies');
+                exit;
+            }
+
+            // Lấy danh sách suất chiếu
+            $showTimes = $this->showTimeModel->getShowTimesByMovieId($movieId);
+            error_log("Số lượng suất chiếu: " . count($showTimes));
+
+            // Debug mỗi suất chiếu
+            foreach ($showTimes as $index => $showTime) {
+                error_log("Suất chiếu {$index}:");
+                error_log("ID: " . $showTime['id']);
+                error_log("Thời gian: " . $showTime['startTime']);
+                error_log("Phòng: " . $showTime['room']);
+
+                $bookingStatus = $this->showTimeModel->canBookShowTime($showTime['id']);
+                $showTimes[$index]['can_book'] = $bookingStatus['can_book'];
+                $showTimes[$index]['message'] = $bookingStatus['message'];
+            }
+
+            require 'views/movies/detail.php';
+        } catch (Exception $e) {
+            error_log("Error: " . $e->getMessage());
+            $_SESSION['error'] = 'Có lỗi xảy ra';
             header('Location: ' . BASE_URL . 'movies');
             exit;
         }
-
-        // Lấy thể loại của phim
-        $movie['categories'] = $this->categoryModel->getCategoriesByMovieId($id);
-
-        // Lấy suất chiếu
-        $showTimes = $this->showTimeModel->getShowTimesByMovieId($id);
-
-        require_once "views/movies/detail.php";
     }
 
     public function uploadImage($file)
@@ -156,6 +156,7 @@ class MovieController
             $title = $_POST['title'];
             $description = $_POST['description'];
             $duration = $_POST['duration'];
+            $trailer = $_POST['trailer'] ?? '';
 
             $imageUrl = null;
             if (isset($_FILES["image"]) && $_FILES["image"]["error"] == 0) {
@@ -180,7 +181,7 @@ class MovieController
                 }
             }
 
-            if ($this->movieModel->createMovie($title, $description, $duration, $imageUrl)) {
+            if ($this->movieModel->createMovie($title, $description, $duration, $imageUrl, $trailer)) {
                 $_SESSION['success'] = 'Thêm phim thành công';
                 header('Location: ' . BASE_URL . 'admin/movies');
             } else {
@@ -206,6 +207,7 @@ class MovieController
             $title = $_POST['title'];
             $description = $_POST['description'];
             $duration = $_POST['duration'];
+            $trailer = $_POST['trailer'] ?? '';
             $imageUrl = $movie['imageUrl']; // Giữ nguyên ảnh cũ nếu không upload ảnh mới
 
             if (isset($_FILES["image"]) && $_FILES["image"]["error"] == 0) {
@@ -240,7 +242,7 @@ class MovieController
                 }
             }
 
-            if ($this->movieModel->updateMovie($id, $title, $description, $duration, $imageUrl)) {
+            if ($this->movieModel->updateMovie($id, $title, $description, $duration, $imageUrl, $trailer)) {
                 $_SESSION['success'] = 'Cập nhật phim thành công';
                 header('Location: ' . BASE_URL . 'admin/movies');
             } else {

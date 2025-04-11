@@ -43,24 +43,12 @@
                         </td>
                         <td>
                             <?php if ($user['role'] !== 'admin'): ?>
-                                <a href="<?php echo BASE_URL; ?>admin/users/promote?id=<?php echo $user['id']; ?>"
-                                    class="btn btn-success btn-sm"
-                                    onclick="return confirm('Bạn có chắc chắn muốn thăng cấp người dùng này thành admin?');">
-                                    <i class="fas fa-arrow-up"></i> Thăng cấp
-                                </a>
-                            <?php else: ?>
-                                <a href="<?php echo BASE_URL; ?>admin/users/demote?id=<?php echo $user['id']; ?>"
-                                    class="btn btn-warning btn-sm"
-                                    onclick="return confirm('Bạn có chắc chắn muốn hạ cấp admin này thành người dùng thường?');">
-                                    <i class="fas fa-arrow-down"></i> Hạ cấp
+                                <a href="<?php echo BASE_URL; ?>admin/users/delete?id=<?php echo $user['id']; ?>"
+                                    class="btn btn-danger btn-sm"
+                                    onclick="return confirm('Bạn có chắc chắn muốn xóa người dùng này?');">
+                                    <i class="fas fa-trash"></i> Xóa
                                 </a>
                             <?php endif; ?>
-
-                            <a href="<?php echo BASE_URL; ?>admin/users/delete?id=<?php echo $user['id']; ?>"
-                                class="btn btn-danger btn-sm"
-                                onclick="return confirm('Bạn có chắc chắn muốn xóa người dùng này?');">
-                                <i class="fas fa-trash"></i> Xóa
-                            </a>
                         </td>
                     </tr>
                 <?php endforeach; ?>

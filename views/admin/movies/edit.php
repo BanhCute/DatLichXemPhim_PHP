@@ -27,6 +27,13 @@
                             <textarea class="form-control" id="description" name="description" rows="3" required><?php echo htmlspecialchars($movie['description']); ?></textarea>
                         </div>
                         <div class="mb-3">
+                            <label for="trailer" class="form-label">Link Trailer (YouTube)</label>
+                            <input type="text" class="form-control" id="trailer" name="trailer"
+                                value="<?php echo htmlspecialchars($movie['trailer'] ?? ''); ?>"
+                                placeholder="Ví dụ: https://www.youtube.com/watch?v=...">
+                            <div class="form-text">Nhập link YouTube của trailer phim</div>
+                        </div>
+                        <div class="mb-3">
                             <label for="duration" class="form-label">Thời lượng (phút)</label>
                             <input type="number" class="form-control" id="duration" name="duration" value="<?php echo $movie['duration']; ?>" required min="1">
                         </div>

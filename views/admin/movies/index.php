@@ -1,37 +1,35 @@
 <?php include 'views/layouts/header.php'; ?>
 
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Quản lý phim</h2>
+<div class="container mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-5">
+        <h2 class="fw-bold text-dark">Quản lý phim</h2>
         <div>
-            <a href="<?php echo BASE_URL; ?>admin/movies/add" class="btn btn-primary me-2">
+            <a href="<?php echo BASE_URL; ?>admin/movies/add" class="btn btn-primary me-2 shadow-sm">
                 <i class="fas fa-plus"></i> Thêm phim mới
             </a>
-            <span class="badge bg-info fs-6">
-                <i class="fas fa-film me-1"></i> Tổng số phim: <?php echo $totalMovies; ?>
+            <span class="badge bg-info fs-6 shadow-sm">
+                <i class="fas fa-film me-1"></i> Tổng số phim: <?php echo isset($totalMovies) ? $totalMovies : 0; ?>
             </span>
         </div>
     </div>
 
     <!-- Form tìm kiếm và lọc -->
-    <div class="card mb-4">
+    <div class="card mb-5 shadow-sm border-0">
         <div class="card-body">
-            <form method="GET" action="<?php echo BASE_URL; ?>admin/movies" class="row">
-                <div class="col-md-5">
+            <form method="GET" action="<?php echo BASE_URL; ?>admin/movies" class="row g-3" id="searchForm">
+                <div class="col-md-4">
                     <div class="input-group">
+                        <span class="input-group-text bg-light border-0"><i class="fas fa-search text-muted"></i></span>
                         <input type="text"
                             name="search"
-                            class="form-control"
+                            class="form-control border-0 shadow-sm"
                             placeholder="Tìm kiếm theo tên phim..."
                             value="<?php echo htmlspecialchars($keyword ?? ''); ?>">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-search"></i> Tìm kiếm
-                        </button>
                     </div>
                 </div>
 
                 <div class="col-md-4">
-                    <select class="form-select" name="category" onchange="this.form.submit()">
+                    <select class="form-select border-0 shadow-sm" name="category" id="categorySelect">
                         <option value="">-- Tất cả thể loại --</option>
                         <?php if (isset($categories) && is_array($categories)): ?>
                             <?php foreach ($categories as $category): ?>
@@ -44,9 +42,12 @@
                     </select>
                 </div>
 
-                <div class="col-md-3">
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-primary me-2 shadow-sm">
+                        <i class="fas fa-search"></i> Tìm kiếm
+                    </button>
                     <?php if (!empty($keyword) || !empty($selectedCategory)): ?>
-                        <a href="<?php echo BASE_URL; ?>admin/movies" class="btn btn-outline-secondary w-100">
+                        <a href="<?php echo BASE_URL; ?>admin/movies" class="btn btn-outline-secondary shadow-sm">
                             <i class="fas fa-times"></i> Xóa bộ lọc
                         </a>
                     <?php endif; ?>
@@ -56,7 +57,7 @@
     </div>
 
     <?php if (isset($_SESSION['success'])): ?>
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
             <?php echo $_SESSION['success'];
             unset($_SESSION['success']); ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -64,7 +65,7 @@
     <?php endif; ?>
 
     <?php if (isset($_SESSION['error'])): ?>
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
             <?php echo $_SESSION['error'];
             unset($_SESSION['error']); ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -73,7 +74,7 @@
 
     <!-- Hiển thị kết quả tìm kiếm -->
     <?php if (!empty($keyword) || !empty($selectedCategory)): ?>
-        <div class="alert alert-info">
+        <div class="alert alert-info shadow-sm">
             <?php if (!empty($keyword)): ?>
                 <i class="fas fa-search me-2"></i>
                 Kết quả tìm kiếm: "<strong><?php echo htmlspecialchars($keyword); ?></strong>"
@@ -93,74 +94,96 @@
                     ?>
                 </strong>
             <?php endif; ?>
-
             <span class="badge bg-secondary ms-2"><?php echo $totalMovies; ?> phim</span>
         </div>
     <?php endif; ?>
 
+    <!-- Thêm debug info -->
+    <?php
+    error_log("View received movies: " . (isset($movies) ? count($movies) : 'null'));
+    error_log("View received totalMovies: " . (isset($totalMovies) ? $totalMovies : 'null'));
+    ?>
+
+    <!-- Hiển thị danh sách phim -->
     <?php if (empty($movies)): ?>
-        <div class="alert alert-info">
+        <div class="alert alert-info shadow-sm">
             <i class="fas fa-info-circle"></i> Chưa có phim nào trong hệ thống.
         </div>
     <?php else: ?>
         <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
             <?php foreach ($movies as $movie): ?>
+                <?php
+                // Debug thông tin từng phim
+                error_log("Processing movie: " . json_encode($movie));
+                ?>
                 <div class="col">
-                    <div class="card h-100 shadow-sm">
+                    <div class="card h-100 border-0 shadow-sm movie-card">
                         <div class="position-relative">
                             <?php if (!empty($movie['imageUrl'])): ?>
                                 <img src="<?php echo BASE_URL . $movie['imageUrl']; ?>"
                                     class="card-img-top"
                                     alt="<?php echo htmlspecialchars($movie['title']); ?>"
-                                    style="height: 300px; object-fit: cover;">
+                                    style="height: 300px; object-fit: cover; border-top-left-radius: 10px; border-top-right-radius: 10px;">
                             <?php else: ?>
-                                <div class="bg-light d-flex align-items-center justify-content-center" style="height: 300px;">
+                                <div class="bg-light d-flex align-items-center justify-content-center" style="height: 300px; border-top-left-radius: 10px; border-top-right-radius: 10px;">
                                     <i class="fas fa-film fa-3x text-muted"></i>
                                 </div>
                             <?php endif; ?>
+
                             <div class="position-absolute top-0 start-0 m-2">
-                                <span class="badge bg-primary">ID: <?php echo $movie['id']; ?></span>
+                                <span class="badge bg-primary shadow-sm">ID: <?php echo $movie['id']; ?></span>
                             </div>
+
                             <div class="position-absolute top-0 end-0 m-2">
-                                <span class="badge bg-info">
+                                <span class="badge bg-info shadow-sm">
                                     <i class="fas fa-clock"></i> <?php echo $movie['duration']; ?> phút
                                 </span>
                             </div>
                         </div>
 
                         <div class="card-body">
-                            <h5 class="card-title"><?php echo htmlspecialchars($movie['title']); ?></h5>
-                            <p class="card-text text-muted" style="height: 4.5em; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">
-                                <?php echo htmlspecialchars($movie['description']); ?>
-                            </p>
-
-                            <!-- Thể loại phim -->
-                            <?php if (isset($movie['categories']) && is_array($movie['categories'])): ?>
-                                <div class="movie-categories">
-                                    <?php foreach ($movie['categories'] as $cat): ?>
-                                        <span class="badge bg-primary">
-                                            <?php echo htmlspecialchars($cat['name']); ?>
+                            <h5 class="card-title fw-bold text-dark"><?php echo htmlspecialchars($movie['title']); ?></h5>
+                            <div class="category-container mb-2">
+                                <?php if (!empty($movie['categories'])): ?>
+                                    <?php foreach ($movie['categories'] as $category): ?>
+                                        <span class="badge bg-secondary me-1 category-badge">
+                                            <i class="fas fa-tag me-1"></i>
+                                            <?php echo htmlspecialchars($category['name']); ?>
                                         </span>
                                     <?php endforeach; ?>
-                                </div>
+                                <?php else: ?>
+                                    <span class="badge bg-secondary me-1 category-badge">
+                                        <i class="fas fa-tag me-1"></i>Chưa phân loại
+                                    </span>
+                                <?php endif; ?>
+                            </div>
+                            <p class="card-text text-muted">
+                                <?php if (!empty($movie['description'])): ?>
+                                    <?php echo htmlspecialchars(substr($movie['description'], 0, 100)) . '...'; ?>
+                                <?php endif; ?>
+                            </p>
+
+                            <!-- Thêm nút xem trailer -->
+                            <?php if (!empty($movie['trailer'])): ?>
+                                <a href="<?php echo htmlspecialchars($movie['trailer']); ?>"
+                                    target="_blank"
+                                    class="btn btn-outline-danger btn-sm mb-2 shadow-sm trailer-btn">
+                                    <i class="fab fa-youtube"></i> Xem Trailer
+                                </a>
                             <?php endif; ?>
                         </div>
 
-                        <div class="card-footer bg-transparent border-top-0">
-                            <div class="d-flex justify-content-between gap-2">
-
-
-                                <div>
-                                    <a href="<?php echo BASE_URL; ?>admin/movies/edit?id=<?php echo $movie['id']; ?>"
-                                        class="btn btn-outline-primary btn-sm me-1">
-                                        <i class="fas fa-edit"></i> Sửa
-                                    </a>
-                                    <a href="<?php echo BASE_URL; ?>admin/movies/delete?id=<?php echo $movie['id']; ?>"
-                                        class="btn btn-outline-danger btn-sm"
-                                        onclick="return confirm('Bạn có chắc chắn muốn xóa phim này?');">
-                                        <i class="fas fa-trash"></i> Xóa
-                                    </a>
-                                </div>
+                        <div class="card-footer bg-transparent border-0">
+                            <div class="d-flex justify-content-between">
+                                <a href="<?php echo BASE_URL; ?>admin/movies/edit?id=<?php echo $movie['id']; ?>"
+                                    class="btn btn-primary btn-sm shadow-sm">
+                                    <i class="fas fa-edit"></i> Sửa
+                                </a>
+                                <a href="<?php echo BASE_URL; ?>admin/movies/delete?id=<?php echo $movie['id']; ?>"
+                                    class="btn btn-danger btn-sm shadow-sm"
+                                    onclick="return confirm('Bạn có chắc muốn xóa phim này?');">
+                                    <i class="fas fa-trash"></i> Xóa
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -169,109 +192,46 @@
         </div>
 
         <!-- Phân trang -->
-        <?php if ($totalPages > 1): ?>
-            <nav aria-label="Page navigation" class="mt-4">
-                <div class="d-flex justify-content-center align-items-center">
-                    <ul class="pagination mb-0 align-items-center">
-                        <!-- Nút Đầu trang -->
-                        <li class="page-item <?php echo ($page <= 1) ? 'disabled' : ''; ?>">
-                            <a class="page-link border-0 bg-light fw-bold"
-                                href="<?php echo BASE_URL; ?>admin/movies?page=1
-                               <?php echo $selectedCategory ? '&category=' . $selectedCategory : ''; ?>
-                               <?php echo !empty($keyword) ? '&search=' . urlencode($keyword) : ''; ?>">
-                                <i class="fas fa-angle-double-left"></i>
+        <?php if (isset($totalPages) && $totalPages > 1): ?>
+            <nav aria-label="Page navigation" class="mt-5">
+                <ul class="pagination justify-content-center">
+                    <!-- Nút Previous -->
+                    <li class="page-item <?php echo ($page <= 1) ? 'disabled' : ''; ?>">
+                        <a class="page-link shadow-sm" href="<?php
+                                                                $prevPage = $page - 1;
+                                                                $params = $_GET;
+                                                                $params['page'] = $prevPage;
+                                                                echo BASE_URL . 'admin/movies?' . http_build_query($params);
+                                                                ?>">
+                            <i class="fas fa-angle-left"></i>
+                        </a>
+                    </li>
+
+                    <!-- Các số trang -->
+                    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                        <li class="page-item <?php echo ($page == $i) ? 'active' : ''; ?>">
+                            <a class="page-link shadow-sm" href="<?php
+                                                                    $params = $_GET;
+                                                                    $params['page'] = $i;
+                                                                    echo BASE_URL . 'admin/movies?' . http_build_query($params);
+                                                                    ?>">
+                                <?php echo $i; ?>
                             </a>
                         </li>
+                    <?php endfor; ?>
 
-                        <!-- Nút Trước -->
-                        <li class="page-item <?php echo ($page <= 1) ? 'disabled' : ''; ?>">
-                            <a class="page-link border-0 bg-light fw-bold"
-                                href="<?php echo BASE_URL; ?>admin/movies?page=<?php echo ($page - 1); ?>
-                               <?php echo $selectedCategory ? '&category=' . $selectedCategory : ''; ?>
-                               <?php echo !empty($keyword) ? '&search=' . urlencode($keyword) : ''; ?>">
-                                <i class="fas fa-angle-left"></i>
-                            </a>
-                        </li>
-
-                        <!-- Các số trang -->
-                        <?php
-                        // Hiển thị tối đa 5 trang
-                        $startPage = max(1, min($page - 2, $totalPages - 4));
-                        $endPage = min($totalPages, max(5, $page + 2));
-
-                        // Hiển thị "..." nếu không bắt đầu từ trang 1
-                        if ($startPage > 1): ?>
-                            <li class="page-item">
-                                <a class="page-link border-0 bg-light"
-                                    href="<?php echo BASE_URL; ?>admin/movies?page=1
-                                    <?php echo $selectedCategory ? '&category=' . $selectedCategory : ''; ?>
-                                    <?php echo !empty($keyword) ? '&search=' . urlencode($keyword) : ''; ?>">
-                                    1
-                                </a>
-                            </li>
-                            <?php if ($startPage > 2): ?>
-                                <li class="page-item disabled">
-                                    <span class="page-link border-0">...</span>
-                                </li>
-                            <?php endif; ?>
-                        <?php endif; ?>
-
-                        <?php for ($i = $startPage; $i <= $endPage; $i++): ?>
-                            <li class="page-item <?php echo $i == $page ? 'active' : ''; ?>">
-                                <a class="page-link border-0 <?php echo $i == $page ? 'bg-primary text-white' : 'bg-light'; ?>"
-                                    href="<?php echo BASE_URL; ?>admin/movies?page=<?php echo $i; ?>
-                                   <?php echo $selectedCategory ? '&category=' . $selectedCategory : ''; ?>
-                                   <?php echo !empty($keyword) ? '&search=' . urlencode($keyword) : ''; ?>">
-                                    <?php echo $i; ?>
-                                </a>
-                            </li>
-                        <?php endfor; ?>
-
-                        <!-- Hiển thị "..." nếu không kết thúc ở trang cuối -->
-                        <?php if ($endPage < $totalPages): ?>
-                            <?php if ($endPage < $totalPages - 1): ?>
-                                <li class="page-item disabled">
-                                    <span class="page-link border-0">...</span>
-                                </li>
-                            <?php endif; ?>
-                            <li class="page-item">
-                                <a class="page-link border-0 bg-light"
-                                    href="<?php echo BASE_URL; ?>admin/movies?page=<?php echo $totalPages; ?>
-                                    <?php echo $selectedCategory ? '&category=' . $selectedCategory : ''; ?>
-                                    <?php echo !empty($keyword) ? '&search=' . urlencode($keyword) : ''; ?>">
-                                    <?php echo $totalPages; ?>
-                                </a>
-                            </li>
-                        <?php endif; ?>
-
-                        <!-- Nút Sau -->
-                        <li class="page-item <?php echo ($page >= $totalPages) ? 'disabled' : ''; ?>">
-                            <a class="page-link border-0 bg-light fw-bold"
-                                href="<?php echo BASE_URL; ?>admin/movies?page=<?php echo ($page + 1); ?>
-                               <?php echo $selectedCategory ? '&category=' . $selectedCategory : ''; ?>
-                               <?php echo !empty($keyword) ? '&search=' . urlencode($keyword) : ''; ?>">
-                                <i class="fas fa-angle-right"></i>
-                            </a>
-                        </li>
-
-                        <!-- Nút Cuối trang -->
-                        <li class="page-item <?php echo ($page >= $totalPages) ? 'disabled' : ''; ?>">
-                            <a class="page-link border-0 bg-light fw-bold"
-                                href="<?php echo BASE_URL; ?>admin/movies?page=<?php echo $totalPages; ?>
-                               <?php echo $selectedCategory ? '&category=' . $selectedCategory : ''; ?>
-                               <?php echo !empty($keyword) ? '&search=' . urlencode($keyword) : ''; ?>">
-                                <i class="fas fa-angle-double-right"></i>
-                            </a>
-                        </li>
-
-                        <!-- Tổng số trang -->
-                        <li class="page-item disabled ms-3">
-                            <span class="page-link border-0 bg-transparent">
-                                Trang <?php echo $page; ?> / <?php echo $totalPages; ?>
-                            </span>
-                        </li>
-                    </ul>
-                </div>
+                    <!-- Nút Next -->
+                    <li class="page-item <?php echo ($page >= $totalPages) ? 'disabled' : ''; ?>">
+                        <a class="page-link shadow-sm" href="<?php
+                                                                $nextPage = $page + 1;
+                                                                $params = $_GET;
+                                                                $params['page'] = $nextPage;
+                                                                echo BASE_URL . 'admin/movies?' . http_build_query($params);
+                                                                ?>">
+                            <i class="fas fa-angle-right"></i>
+                        </a>
+                    </li>
+                </ul>
             </nav>
         <?php endif; ?>
     <?php endif; ?>
@@ -280,68 +240,187 @@
 <?php include 'views/layouts/footer.php'; ?>
 
 <style>
-    /* Style cho dropdown menu */
-    .dropdown-menu {
-        border: none;
-        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-    }
-
-    /* Style cho các item trong dropdown */
-    .dropdown-item {
-        padding: 0.5rem 1rem;
-        color: #333;
-        transition: all 0.2s ease;
-    }
-
-    /* Style cho item đang được chọn (active) */
-    .dropdown-item.active {
-        background-color: #0d6efd !important;
-        color: white !important;
-    }
-
-    /* Style cho hover state */
-    .dropdown-item:hover {
-        background-color: #f8f9fa;
-        color: #0d6efd;
-    }
-
-    /* Style đặc biệt khi hover vào item đang active */
-    .dropdown-item.active:hover {
-        background-color: #0b5ed7 !important;
-        color: white !important;
-    }
-
-    /* Thêm icon check cho item đang active */
-    .dropdown-item.active::before {
-        content: '✓';
-        margin-right: 0.5rem;
-    }
-
-    /* Style cho dropdown toggle button */
-    .nav-pills .nav-link.dropdown-toggle {
-        background-color: #0d6efd;
-        color: white;
-    }
-
-    .nav-pills .nav-link.dropdown-toggle:hover,
-    .nav-pills .nav-link.dropdown-toggle.active {
-        background-color: #0b5ed7;
-        color: white;
-    }
-
     :root {
         --primary: #0d6efd;
         --primary-dark: #0b5ed7;
-        --hover-bg: #f8f9fa;
-        --text-color: #333;
+        --secondary: #6c757d;
+        --danger: #dc3545;
+        --info: #17a2b8;
+        --light: #f8f9fa;
+        --dark: #343a40;
+        --hover-bg: #f1f3f5;
+        --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        --shadow-hover: 0 6px 12px rgba(0, 0, 0, 0.15);
+        --transition: all 0.3s ease;
     }
 
-    .dropdown-item.active {
-        background-color: var(--primary) !important;
+    body {
+        background-color: var(--light);
+        font-family: 'Roboto', sans-serif;
     }
 
-    .dropdown-item:hover {
-        background-color: var(--hover-bg);
+    .container {
+        max-width: 1200px;
+    }
+
+    h2 {
+        font-size: 2rem;
+        letter-spacing: 1px;
+    }
+
+    .btn-primary {
+        background-color: var(--primary);
+        border: none;
+        transition: var(--transition);
+    }
+
+    .btn-primary:hover {
+        background-color: var(--primary-dark);
+        transform: translateY(-2px);
+    }
+
+    .btn-outline-secondary {
+        border-color: var(--secondary);
+        color: var(--secondary);
+        transition: var(--transition);
+    }
+
+    .btn-outline-secondary:hover {
+        background-color: var(--secondary);
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .badge {
+        padding: 0.5em 1em;
+        font-weight: 500;
+    }
+
+    .category-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .category-badge {
+        background-color: var(--secondary);
+        color: white;
+        font-size: 0.85rem;
+        padding: 0.4em 0.8em;
+    }
+
+    .card {
+        transition: var(--transition);
+    }
+
+    .movie-card {
+        border-radius: 10px;
+        overflow: hidden;
+        background-color: white;
+    }
+
+    .movie-card:hover {
+        transform: translateY(-5px);
+        box-shadow: var(--shadow-hover);
+    }
+
+    .card-img-top {
+        transition: var(--transition);
+    }
+
+    .movie-card:hover .card-img-top {
+        opacity: 0.9;
+    }
+
+    .card-body {
+        padding: 1.5rem;
+    }
+
+    .card-title {
+        font-size: 1.25rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .card-text {
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+
+    .trailer-btn {
+        border-color: var(--danger);
+        color: var(--danger);
+        transition: var(--transition);
+    }
+
+    .trailer-btn:hover {
+        background-color: var(--danger);
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .card-footer {
+        padding: 1rem 1.5rem;
+    }
+
+    .btn-sm {
+        padding: 0.4rem 1rem;
+        font-size: 0.875rem;
+    }
+
+    .btn-danger {
+        background-color: var(--danger);
+        border: none;
+        transition: var(--transition);
+    }
+
+    .btn-danger:hover {
+        background-color: #c82333;
+        transform: translateY(-2px);
+    }
+
+    .pagination .page-link {
         color: var(--primary);
+        border: none;
+        margin: 0 5px;
+        transition: var(--transition);
+    }
+
+    .pagination .page-item.active .page-link {
+        background-color: var(--primary);
+        border-color: var(--primary);
+        color: white;
+    }
+
+    .pagination .page-link:hover {
+        background-color: var(--hover-bg);
+        color: var(--primary-dark);
+    }
+
+    .alert {
+        border-radius: 8px;
+        border: none;
+    }
+
+    .form-control,
+    .form-select {
+        border-radius: 8px;
+        padding: 0.75rem;
+    }
+
+    .input-group-text {
+        border-radius: 8px 0 0 8px;
     }
 </style>
+
+<!-- Thêm JavaScript để xử lý form -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchForm = document.getElementById('searchForm');
+        const categorySelect = document.getElementById('categorySelect');
+
+        // Tự động submit form khi thay đổi category
+        categorySelect.addEventListener('change', function() {
+            searchForm.submit();
+        });
+    });
+</script>
